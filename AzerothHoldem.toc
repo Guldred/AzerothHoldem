@@ -1,0 +1,58 @@
+## Interface: 30300
+## Title: Azeroth Hold'em
+## Notes: Peer-verifiable Texas Hold'em with cryptographic anti-cheat (Tier 1)
+## Author: Azeroth Hold'em
+## Version: 0.1.0
+## SavedVariables: AzerothHoldemDB
+## SavedVariablesPerCharacter: AzerothHoldemCharDB
+
+# --- core ---
+src\core\Const.lua
+src\core\Util.lua
+src\core\Log.lua
+
+# --- crypto (pure) ---
+src\crypto\Bit.lua
+src\crypto\Sha256.lua
+src\crypto\Rng.lua
+src\crypto\Commit.lua
+
+# --- Tier 2 crypto (optional mental poker; feature-flagged, heavy) ---
+src\crypto\BigInt.lua
+src\crypto\SRA.lua
+src\crypto\MentalPoker.lua
+
+# --- engine (pure) ---
+src\engine\Deck.lua
+src\crypto\Verify.lua
+src\engine\HandEval.lua
+src\engine\Pot.lua
+src\engine\Variant.lua
+src\engine\variants\TexasHoldem.lua
+src\engine\Rules.lua
+src\engine\Dealer.lua
+
+# --- networking ---
+src\net\Protocol.lua
+src\net\Transport.lua
+src\net\Codec.lua
+
+# --- game ---
+src\game\Ledger.lua
+src\game\Host.lua
+src\game\Client.lua
+src\game\Lobby.lua
+src\game\TableHost.lua
+src\game\Casino.lua
+
+# --- WoW shell (the only files that touch the client API) ---
+src\core\Scheduler.lua
+src\core\Init.lua
+
+# --- UI (FrameXML) ---
+src\ui\Widgets.lua
+src\ui\Table.lua
+src\ui\Actions.lua
+src\ui\TrustPanel.lua
+src\ui\HostPanel.lua
+src\ui\LobbyPanel.lua
