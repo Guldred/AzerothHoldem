@@ -100,6 +100,16 @@ function Client:onMessage(sender, payload, channel)
   end
 
   if op == OP.HANDSTART then
+    -- only play hands we are actually seated in: a freshly (re)joined client can see
+    -- the table's current hand before its own seat takes effect next hand — joining
+    -- that handshake as a phantom would corrupt the table's commit barriers.
+    local seated = false
+    for i = 1, #d.seats do if d.seats[i] == self.me then seated = true break end end
+    if not seated then
+      self.seats, self.phase, self.prompt, self.toActSeat = nil, PHASE.IDLE, nil, nil
+      self.pendingHole, self.pendingBetTurn, self.deckCommits = nil, nil, nil
+      return
+    end
     -- reset per-hand state so one Client plays an unbounded series of hands
     self.commits, self.reveals, self.sentReveal = {}, {}, false
     self.S, self.H, self.deckCommits, self.sentStateHash, self.stateHashes = nil, nil, nil, false, {}
@@ -152,11 +162,20 @@ function Client:onMessage(sender, payload, channel)
     self.toActSeat = d.seat                      -- public: whose turn it is (for the UI)
     if d.seat == self.me and self.phase == PHASE.DEAL then
       if self.human then
-        self.prompt = { toCall = d.toCall, minRaise = d.minRaise, actionNo = d.actionNo }
+        -- minTo/maxTo: the legal bet/raise-TO range from the host (raise amounts are
+        -- raise-TO totals). A re-sent BET_TURN after a refused intent lands here too,
+        -- restoring the prompt so the player can try again.
+        self.prompt = { toCall = d.toCall, minRaise = d.minRaise, actionNo = d.actionNo,
+                        minTo = d.minTo, maxTo = d.maxTo, canCheck = d.canCheck }
       else
         self:_act(d.toCall, d.minRaise, d.actionNo)
       end
     end
+
+  elseif op == OP.REFUSE then
+    -- host rejected our intent (e.g. raise too small); surface why. The prompt comes
+    -- back via the host's re-sent BET_TURN.
+    self.lastRefuse = d.reason ~= "" and d.reason or "action refused"
 
   elseif op == OP.ACTED then
     if d.action == CC.ACTION.FOLD then self.folded[d.seat] = true end

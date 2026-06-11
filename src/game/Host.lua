@@ -85,6 +85,16 @@ function Host:onMessage(sender, payload, channel)
   local op, d = Codec.decode(payload)
   if d == nil then return end
 
+  -- only seats in THIS hand may contribute to its barriers or pull its state (a
+  -- just-(re)joined spectator's stray commit must not trip the collect-all counts
+  -- early, and RESYNC snapshots are for participants only)
+  if op == OP.SEEDCMT or op == OP.SEEDREVEAL or op == OP.STATEHASH or op == OP.INTENT
+      or op == OP.RESYNC then
+    local member = false
+    for i = 1, #self.seats do if self.seats[i] == d.seat then member = true break end end
+    if not member then return end
+  end
+
   if op == OP.SEEDCMT then
     self.commits[d.seat] = d.commit
   elseif op == OP.SEEDREVEAL then
@@ -175,18 +185,33 @@ function Host:_startBetting()
   self:_promptTurn()
 end
 
+-- the BET_TURN payload for a seat's turn: includes the full bet/raise-TO range so a
+-- client can submit a VALID raise-to amount (minRaiseSize alone is just the increment
+-- and led clients to send illegal raises).
+function Host:_betTurnPayload(seat, la)
+  local minTo, maxTo
+  if la.canRaise then minTo, maxTo = la.minRaiseTo, la.maxRaiseTo
+  elseif la.canBet then minTo, maxTo = la.minBetTo, la.maxBetTo end
+  return {
+    handNo = self.handNo, actionNo = self.actionNo, seat = seat,
+    toCall = la.toCall or 0, minRaise = self.dealer.rules.minRaiseSize,
+    minTo = minTo, maxTo = maxTo, canCheck = la.canCheck,
+  }
+end
+
 function Host:_promptTurn()
   local rules = self.dealer.rules
   if rules.complete then return self:_finishHand() end
   local seat = rules.toAct
   if not seat then return self:_finishHand() end
+  if self.absent and self.absent[seat] then           -- player left the table: auto-fold
+    self.actionNo = self.actionNo + 1
+    return self:_applyAction(seat, ACTION.FOLD)
+  end
   self.turnTicks = 0                                  -- (re)start the turn clock
   self.actionNo = self.actionNo + 1
   local la = Rules.legalActions(rules, seat)
-  self:_bcast(OP.BET_TURN, {
-    handNo = self.handNo, actionNo = self.actionNo, seat = seat,
-    toCall = la.toCall or 0, minRaise = rules.minRaiseSize,
-  })
+  self:_bcast(OP.BET_TURN, self:_betTurnPayload(seat, la))
   if seat == self.me then
     if self.human then
       self.awaitingAction = la         -- wait for humanAct() (slash command / UI)
@@ -194,6 +219,17 @@ function Host:_promptTurn()
       local action, amount = self.policy(seat, la)
       self:_applyAction(seat, action, amount)
     end
+  end
+end
+
+-- a seat stood up / went silent for good: fold them now (or as soon as it's their
+-- turn) so the hand can never hang waiting on someone who is gone.
+function Host:markAbsent(seat)
+  if seat == self.me then return end
+  self.absent = self.absent or {}
+  self.absent[seat] = true
+  if self.phase == PHASE.BETTING and self.dealer and self.dealer.rules.toAct == seat then
+    self:_applyAction(seat, ACTION.FOLD)
   end
 end
 
@@ -209,16 +245,30 @@ function Host:humanAct(action, amount)
   if self.phase ~= PHASE.BETTING or not self.dealer or self.dealer.rules.toAct ~= self.me then
     return false, "not your turn"
   end
+  -- clear BEFORE applying: _applyAction can advance play right back to our own next
+  -- turn (heads-up street change) and set a fresh awaitingAction we must not clobber.
+  local pending = self.awaitingAction
   self.awaitingAction = nil
-  self:_applyAction(self.me, action, amount)
-  return true
+  local ok, err = self:_applyAction(self.me, action, amount)
+  if not ok then self.awaitingAction = pending end  -- illegal: still our turn, keep waiting
+  return ok, err
 end
 
 function Host:_applyAction(seat, action, amount)
   local rules = self.dealer.rules
-  if rules.toAct ~= seat then return end           -- stale / out of turn
-  local ok = Rules.applyAction(rules, seat, action, amount)
-  if not ok then return end                         -- illegal intent: ignore (client re-acts)
+  if rules.toAct ~= seat then return false, "not your turn" end   -- stale / out of turn
+  local ok, err = Rules.applyAction(rules, seat, action, amount)
+  if not ok then
+    -- an illegal intent must NEVER wedge the hand: tell the actor why and re-prompt
+    -- them (their client clears its prompt when it sends an intent, so without this
+    -- re-BET_TURN both sides would wait on each other forever).
+    if seat ~= self.me then
+      self.tp:sendReliable(Codec.encode(OP.REFUSE,
+        { handNo = self.handNo, actionNo = self.actionNo, reason = err or "illegal action" }), seat)
+      self:_bcast(OP.BET_TURN, self:_betTurnPayload(seat, Rules.legalActions(rules, seat)))
+    end
+    return false, err
+  end
   local s = rules.seats[seat]
   self:_bcast(OP.ACTED, {
     handNo = self.handNo, actionNo = self.actionNo, seat = seat,
@@ -226,6 +276,7 @@ function Host:_applyAction(seat, action, amount)
   })
   self:_syncBoard()
   if rules.complete then self:_finishHand() else self:_promptTurn() end
+  return true
 end
 
 function Host:_finishHand()

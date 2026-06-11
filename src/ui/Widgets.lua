@@ -454,13 +454,19 @@ function ns.UI.viewOf(s)
     end
     if s.board then for i = 1, #s.board do v.board[i] = s.board[i].val end end
     if s.hole then for i = 1, #s.hole do v.hole[i] = s.hole[i].val end end
+    -- clients aren't told the street explicitly; the board size implies it
+    v.street = (#v.board >= 5 and 3) or (#v.board == 4 and 2) or (#v.board == 3 and 1) or 0
     v.myTurn = s.prompt ~= nil
     if s.prompt then
-      v.toCall, v.minRaise = s.prompt.toCall, s.prompt.minRaise
-      v.canCheck = (v.toCall == 0)
-      v.canBet = (v.toCall == 0); v.minBet = s.prompt.minRaise
-      v.canRaise = (v.toCall > 0)         -- max unknown to a client; host validates the amount
+      local p = s.prompt
+      v.toCall = p.toCall
+      v.canCheck = (p.canCheck ~= nil) and p.canCheck or (v.toCall == 0)
+      -- minTo/maxTo from the host are bet/raise-TO totals (matching what the Rules
+      -- engine validates); older hosts only sent the raise increment — fall back.
+      v.canBet = (v.toCall == 0); v.minBet, v.maxBet = p.minTo or p.minRaise, p.maxTo
+      v.canRaise = (v.toCall > 0); v.minRaise, v.maxRaise = p.minTo, p.maxTo
     end
+    v.refused = s.lastRefuse              -- why the host rejected our last action (if it did)
     v.deltas = s.deltas
   end
   -- best-hand name once we can make 5 (nice "Pair of Kings" readout)

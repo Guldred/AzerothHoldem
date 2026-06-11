@@ -9,8 +9,10 @@ local Const = {}
 
 -- Protocol version: bump on ANY wire-incompatible change. Mismatched versions
 -- must refuse to play together (see net/Protocol, net/Session).
-Const.PROTO_VER = 1
-Const.ADDON_VER = "0.1.0-dev"
+-- v2: BET_TURN carries the raise-TO range, REFUSE/PING ops, host re-prompts on an
+--     illegal intent (a v1 host deadlocks a raising client — do not mix).
+Const.PROTO_VER = 2
+Const.ADDON_VER = "0.1.2"
 
 -- Addon-message prefix. 4 bytes, leaving 254 - 4 = 250 usable text bytes/message.
 Const.PREFIX = "AzHE"

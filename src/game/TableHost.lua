@@ -62,7 +62,11 @@ function TableHost:_broadcastSeats()
   self.cfg.postControl(Codec.encode(OP.SEAT, { tableId = self.id, players = self:_seatList() }), self.broadcast)
 end
 
-function TableHost:advertise()
+-- onDemand: a floor PING asked for an immediate ad (rate-limited so a burst of
+-- arrivals can't make the host spam the channel).
+function TableHost:advertise(onDemand)
+  if onDemand and self._lastAdTick and (self.ticks - self._lastAdTick) < 2 then return end
+  self._lastAdTick = self.ticks
   self.cfg.postControl(Codec.encode(OP.TABLE, {
     tableId = self.id, name = self.name, sb = self.cfg.sb, bb = self.cfg.bb,
     variant = self.cfg.variant or "texas", taken = #self.order, seatMax = self.seatMax, open = self.open,
@@ -72,24 +76,30 @@ end
 -- ---- seating requests (routed here by the Casino from tag-0 control) -------
 function TableHost:onJoin(player)
   if not self.open then return end
+  self.pendingLeave[player] = nil   -- a rejoin cancels a not-yet-processed leave (else
+                                    -- the stale flag would kick them at the next hand)
   if self.host then self.pendingSeat[player] = true     -- mid-hand: seat for next hand
   else self:_seat(player) end
   self:_broadcastSeats()
 end
 
 function TableHost:onLeave(player)
+  self.pendingSeat[player] = nil    -- leaving cancels a not-yet-processed join
   if not self.ledger:isSeated(player) then return end
   if self.host then
     self.pendingLeave[player] = true               -- remove from the table next hand
     local ph = self.host.phase
     if ph == "commit" or ph == "reveal" or ph == "statehash" then
       -- left during the pre-deal handshake: the joint seed assumed this seat, so
-      -- abandon the in-progress hand and restart without them. (During betting the
-      -- Host's turn-timeout folds them instead, so the hand still completes.)
+      -- abandon the in-progress hand and restart without them.
       self.host = nil
       self.cfg.registerHost(self.id, nil)
       self:_unseat(player)
       self.restTicks = 0
+    else
+      -- left during betting/showdown: fold them out immediately (now, or the moment
+      -- their turn comes) so the table never freezes waiting on an empty chair.
+      self.host:markAbsent(player)
     end
   else
     self:_unseat(player)

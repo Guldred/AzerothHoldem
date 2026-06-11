@@ -62,11 +62,19 @@ function Casino:onWire(sender, wire, channel)
   if s then s:onMessage(sender, payload, channel) end       -- only participants hold a session
 end
 
+-- entering the floor (or refreshing the list): ask every host to re-advertise NOW,
+-- instead of waiting up to adInterval for the next periodic ad.
+function Casino:announce()
+  self:_send(LOBBY, Codec.encode(OP.PING, { kind = "lobby" }), self.broadcast, nil)
+end
+
 function Casino:_control(sender, payload, channel)
   local op, d = Codec.decode(payload)
   if d == nil then return end
   if op == OP.TABLE then
     self.lobby:onAd(d)
+  elseif op == OP.PING then
+    if self.tableHost then self.tableHost:advertise(true) end   -- rate-limited
   elseif op == OP.JOIN then
     if self.tableHost and d.table == self.me then self.tableHost:onJoin(sender) end
   elseif op == OP.LEAVE then

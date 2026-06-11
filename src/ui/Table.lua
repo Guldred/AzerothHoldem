@@ -132,7 +132,14 @@ local function refresh(v)
     end
   end
   frame.handName:SetText(v.handName or "")
-  frame.status:SetText(v.aborted and "|cffff4444HALTED|r" or ("street: " .. tostring(v.street or "-")))
+  local STREET = { [0] = "pre-flop", [1] = "flop", [2] = "turn", [3] = "river" }
+  local statusText
+  if v.aborted then statusText = "|cffff4444HALTED|r"
+  elseif v.myTurn then statusText = "|cffffd95cYour turn!|r"
+  elseif v.toAct then statusText = "Waiting for " .. tostring(v.toAct) .. "…"
+  else statusText = "" end
+  if STREET[v.street] then statusText = statusText .. "  (" .. STREET[v.street] .. ")" end
+  frame.status:SetText(statusText)
 
   -- seats around the oval, rotated so "me" sits at the bottom
   frame.activeGlow = nil

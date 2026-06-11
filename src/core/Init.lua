@@ -37,11 +37,14 @@ local function groupChannel()
   return "PARTY"   -- solo: degrades gracefully (used for local testing)
 end
 
--- the multi-table casino lives on a wider channel: a raid if you're in one (up to
--- 40 = the casino floor), otherwise your guild.
+-- The multi-table casino lives on the GUILD channel whenever you have a guild: every
+-- guildmate computes the same channel no matter their party/raid status, so ads and
+-- seating always reach each other (a RAID-first rule made a raiding host invisible to
+-- non-raid guildmates). Guildless characters fall back to their raid/party.
 local function casinoChannel()
+  if IsInGuild and IsInGuild() then return "GUILD" end
   if GetNumRaidMembers() > 0 then return "RAID" end
-  return "GUILD"
+  return "PARTY"
 end
 
 local function groupMembers()
@@ -95,7 +98,14 @@ local function ensureComm()
     end,
   })
   ns.Scheduler.onTick(function() ns.comm:tick() end)
-  ns.Scheduler.onTick(function() if ns.casino then ns.casino:tick(1) end end)
+  -- Scheduler ticks fire every 0.1s; the casino's clock (ad intervals, lobby TTL,
+  -- turn timeouts) is in SECONDS — tick it once per real second, not 10x too fast.
+  local casinoTickAcc = 0
+  ns.Scheduler.onTick(function()
+    if not ns.casino then casinoTickAcc = 0; return end
+    casinoTickAcc = casinoTickAcc + 1
+    if casinoTickAcc >= 10 then casinoTickAcc = 0; ns.casino:tick(1) end
+  end)
   ns.Scheduler.onTick(function() if ns.UI and ns.UI.refresh then ns.UI.refresh(activeSession()) end end)
 end
 
@@ -136,8 +146,9 @@ local function ensureCasino()
       transport = ns.comm, selfName = UnitName("player"), broadcast = casinoChannel(),
       entropy = genEntropy, nonces = genNonces,         -- pass the FUNCTIONS (fresh seed per hand)
       defaultStack = (ns.db and ns.db.defaultStack) or 1000, onCheat = onCheat,
-      adInterval = 30, lobbyTtl = 120, turnTimeout = 600, human = true,
+      adInterval = 30, lobbyTtl = 120, turnTimeout = 60, human = true,
     })
+    ns.casino:announce()              -- ask hosts to re-advertise: instant table list
     Log.info("Entered the casino floor on " .. casinoChannel() .. ".")
   end
   return ns.casino
@@ -184,7 +195,7 @@ local handlers = {
 
   -- multi-table casino
   lobby = function()
-    ensureCasino()
+    ensureCasino():announce()                  -- refresh the table list right away
     if ns.UI and ns.UI.showLobby then ns.UI.showLobby() end
     Log.info("Casino floor open. /azh tables to list, /azh open to deal, /azh sit <dealer> to play.")
   end,
@@ -193,6 +204,7 @@ local handlers = {
       name = a[2] or (UnitName("player") .. "'s Table"),
       sb = tonumber(a[3]) or (ns.db.sb or 5), bb = tonumber(a[4]) or (ns.db.bb or 10),
       seatMax = tonumber(a[5]) or 9,
+      restTicks = 6,                           -- a 6s pause between hands to read the result
     })
     Log.info("Opened a table on the floor — players can /azh sit " .. UnitName("player"))
   end,
@@ -202,10 +214,13 @@ local handlers = {
     Log.info("Sitting down at " .. a[2] .. "'s table.")
   end,
   stand = function()
-    if ns.casino then ns.casino:leave(); Log.info("Stood up from the table.") end
+    if not ns.casino then return end
+    if ns.casino.tableHost then return Log.info("You are hosting this table — it stays open while you play.") end
+    if not ns.casino.seatedAt then return Log.info("You are not seated at a table.") end
+    ns.casino:leave(); Log.info("Stood up from the table.")
   end,
   tables = function()
-    ensureCasino()
+    ensureCasino():announce()                  -- refresh the table list right away
     local list = ns.casino:tables()
     if #list == 0 then return Log.info("No tables advertised yet — wait a moment, or /azh open one.") end
     Log.info("Tables on the floor:")

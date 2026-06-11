@@ -63,8 +63,15 @@ ENC[OP.REVEAL] = function(d)
   return Protocol.encode(OP.REVEAL, { d.handNo, d.street, revealPairs(d.reveals) })
 end
 ENC[OP.BET_TURN] = function(d)
-  return Protocol.encode(OP.BET_TURN, { d.handNo, d.actionNo, d.seat, d.toCall, d.minRaise })
+  -- minTo/maxTo: the actor's full bet-or-raise-TO range (so a client can submit a
+  -- valid raise-to amount); canCheck saves the client guessing from toCall.
+  return Protocol.encode(OP.BET_TURN, { d.handNo, d.actionNo, d.seat, d.toCall, d.minRaise,
+    d.minTo or 0, d.maxTo or 0, d.canCheck and 1 or 0 })
 end
+ENC[OP.REFUSE] = function(d)
+  return Protocol.encode(OP.REFUSE, { d.handNo, d.actionNo or 0, d.reason or "" })
+end
+ENC[OP.PING] = function(d) return Protocol.encode(OP.PING, { d.kind or "lobby" }) end
 ENC[OP.INTENT] = function(d)
   return Protocol.encode(OP.INTENT, { d.handNo, d.actionNo, d.seat, d.action, d.amount or 0 })
 end
@@ -143,9 +150,18 @@ DEC[OP.REVEAL] = function(f)
   return { handNo = tn(leaf(f[1])), street = tn(leaf(f[2])), reveals = parseReveals(f[3]) }
 end
 DEC[OP.BET_TURN] = function(f)
-  return { handNo = tn(leaf(f[1])), actionNo = tn(leaf(f[2])), seat = leaf(f[3]),
-           toCall = tn(leaf(f[4])), minRaise = tn(leaf(f[5])) }
+  local d = { handNo = tn(leaf(f[1])), actionNo = tn(leaf(f[2])), seat = leaf(f[3]),
+              toCall = tn(leaf(f[4])), minRaise = tn(leaf(f[5])) }
+  -- appended fields (absent from older senders): tolerate their absence
+  if f[6] then local v = tn(leaf(f[6])); if v and v > 0 then d.minTo = v end end
+  if f[7] then local v = tn(leaf(f[7])); if v and v > 0 then d.maxTo = v end end
+  if f[8] then d.canCheck = leaf(f[8]) == "1" end
+  return d
 end
+DEC[OP.REFUSE] = function(f)
+  return { handNo = tn(leaf(f[1])), actionNo = tn(leaf(f[2])), reason = leaf(f[3]) }
+end
+DEC[OP.PING] = function(f) return { kind = leaf(f[1]) } end
 DEC[OP.INTENT] = function(f)
   return { handNo = tn(leaf(f[1])), actionNo = tn(leaf(f[2])), seat = leaf(f[3]),
            action = leaf(f[4]), amount = tn(leaf(f[5])) }
