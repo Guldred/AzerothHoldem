@@ -123,8 +123,13 @@ ENC[OP.TABLE] = function(d)
     d.paused and 1 or 0 })
 end
 ENC[OP.JOIN] = function(d) return Protocol.encode(OP.JOIN, { d.table, d.seat or "", d.ver or "" }) end
-ENC[OP.SEAT] = function(d) return Protocol.encode(OP.SEAT, { d.tableId, { list = d.players } }) end
-ENC[OP.LEAVE] = function(d) return Protocol.encode(OP.LEAVE, { d.table, d.player or "" }) end
+ENC[OP.SEAT] = function(d)
+  local away = {}
+  if d.sitout then for i = 1, #d.players do away[i] = d.sitout[d.players[i]] and 1 or 0 end end
+  return Protocol.encode(OP.SEAT, { d.tableId, { list = d.players }, { list = away } })
+end
+-- mode: "" = leave the table; "sitout"/"return" = toggle sitting out (keep the seat)
+ENC[OP.LEAVE] = function(d) return Protocol.encode(OP.LEAVE, { d.table, d.player or "", d.mode or "" }) end
 ENC[OP.RESYNC] = function(d) return Protocol.encode(OP.RESYNC, { d.handNo or 0, d.seat }) end
 -- SNAPSHOT: column-oriented per-seat arrays (parallel to the seat list) so it fits
 -- Protocol's list primitive. Carries enough to resume play + (degraded) audit.
@@ -244,8 +249,18 @@ DEC[OP.JOIN] = function(f)
   local v = f[3] and leaf(f[3]) or ""
   return { table = leaf(f[1]), seat = s ~= "" and s or nil, ver = v ~= "" and v or nil }
 end
-DEC[OP.SEAT] = function(f) return { tableId = leaf(f[1]), players = list(f[2]) } end
-DEC[OP.LEAVE] = function(f) return { table = leaf(f[1]), player = leaf(f[2]) } end
+DEC[OP.SEAT] = function(f)
+  local d = { tableId = leaf(f[1]), players = list(f[2]) }
+  if f[3] then
+    local raw = list(f[3]); d.sitout = {}
+    for i = 1, #raw do if raw[i] == "1" then d.sitout[d.players[i]] = true end end
+  end
+  return d
+end
+DEC[OP.LEAVE] = function(f)
+  local m = f[3] and leaf(f[3]) or ""
+  return { table = leaf(f[1]), player = leaf(f[2]), mode = m ~= "" and m or nil }
+end
 DEC[OP.RESYNC] = function(f) return { handNo = tn(leaf(f[1])), seat = leaf(f[2]) } end
 DEC[OP.SNAPSHOT] = function(f)
   local seats, stacks, committed = list(f[10]), list(f[11]), list(f[12])

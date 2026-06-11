@@ -87,27 +87,67 @@ function Client:onMessage(sender, payload, channel)
   local op, d = Codec.decode(payload)
   if d == nil then return end
 
+  -- per-hand hygiene (only once we're in a hand): messages for OTHER hands must
+  -- never touch this hand's state — a stale commit makes the fresh reveal look
+  -- like a cheat (false CHEAT alert), and next-hand spill corrupts the barriers.
+  if self.seats and self.handNo and d.handNo and d.handNo ~= self.handNo
+      and op ~= OP.HANDSTART and op ~= OP.SNAPSHOT and op ~= OP.CHEAT then
+    if d.handNo < self.handNo then return end        -- a past hand's leftovers: drop
+    if sender ~= self.hostName then
+      -- a PEER's next-hand contribution racing ahead of the host's HANDSTART on
+      -- the shared channel: buffer it — HANDSTART replays it into the fresh
+      -- barriers (dropping it would wedge the collect-all counts forever).
+      if op == OP.SEEDCMT or op == OP.SEEDREVEAL or op == OP.STATEHASH then
+        self.early = self.early or {}
+        if #self.early < 32 then self.early[#self.early + 1] = { op = op, d = d } end
+      end
+      return
+    end
+    -- HOST traffic for a hand AHEAD of us: per-sender ordering means we MISSED
+    -- its HANDSTART (loading screen / brief disconnect during the deal). Fall
+    -- back to the relog path: forget the finished hand, ask the host to heal us
+    -- (pre-deal it re-sends the HANDSTART + collected commits; mid-hand it
+    -- answers with a SNAPSHOT — reduced guarantee this hand), and let the
+    -- pre-bootstrap buffering below make use of this very message.
+    self.seats, self.phase, self.prompt, self.toActSeat = nil, PHASE.IDLE, nil, nil
+    self.pendingHole, self.pendingBetTurn, self.deckCommits = nil, nil, nil
+    self.hole, self.board, self.deltas, self.showdown, self.early = nil, {}, nil, nil, nil
+    self:resume(self.hostName)
+  end
+
   -- pre-bootstrap (fresh / relogged): only HANDSTART or SNAPSHOT start us. Store
-  -- context-free DECKCMT/HOLE and buffer our BET_TURN until we've bootstrapped.
+  -- context-free DECKCMT/HOLE, buffer our BET_TURN and any barrier contributions
+  -- (a healing host re-sends those targeted; whisper retransmits may deliver them
+  -- before the re-sent HANDSTART) until we've bootstrapped.
   if not self.seats then
     if op == OP.SNAPSHOT then return self:_bootstrap(d, sender) end
     if op ~= OP.HANDSTART then
       if op == OP.DECKCMT then self.deckCommits = d.commits
       elseif op == OP.HOLE and d.seat == self.me then self.pendingHole = d.reveals
-      elseif op == OP.BET_TURN and d.seat == self.me then self.pendingBetTurn = d end
+      elseif op == OP.BET_TURN and d.seat == self.me then self.pendingBetTurn = d
+      elseif op == OP.SEEDCMT or op == OP.SEEDREVEAL or op == OP.STATEHASH then
+        self.early = self.early or {}
+        if #self.early < 32 then self.early[#self.early + 1] = { op = op, d = d } end
+      end
       return
     end
   end
 
   if op == OP.HANDSTART then
+    -- a re-broadcast HANDSTART of the hand we're ALREADY playing must not wipe it
+    if self.seats and self.handNo == d.handNo then return end
     -- only play hands we are actually seated in: a freshly (re)joined client can see
     -- the table's current hand before its own seat takes effect next hand — joining
     -- that handshake as a phantom would corrupt the table's commit barriers.
     local seated = false
     for i = 1, #d.seats do if d.seats[i] == self.me then seated = true break end end
     if not seated then
+      -- not in this hand (typically sitting out): clear the WHOLE display too —
+      -- a frozen "Hand complete — next deal in a moment…" with last hand's cards
+      -- made the table look wedged for the entire sit-out stretch.
       self.seats, self.phase, self.prompt, self.toActSeat = nil, PHASE.IDLE, nil, nil
-      self.pendingHole, self.pendingBetTurn, self.deckCommits = nil, nil, nil
+      self.pendingHole, self.pendingBetTurn, self.deckCommits, self.early = nil, nil, nil, nil
+      self.hole, self.board, self.deltas, self.showdown, self.pot = nil, {}, nil, nil, 0
       return
     end
     -- reset per-hand state so one Client plays an unbounded series of hands
@@ -132,26 +172,25 @@ function Client:onMessage(sender, payload, channel)
     self.commits[self.me] = Commit.seedCommit(r, salt)
     self.reveals[self.me] = { r = r, salt = salt }
     self:_bcast(OP.SEEDCMT, { handNo = self.handNo, seat = self.me, commit = self.commits[self.me] })
+    -- replay any of THIS hand's barrier messages that raced ahead of the HANDSTART
+    local early = self.early
+    self.early = nil
+    if early then
+      for i = 1, #early do
+        if early[i].d.handNo == self.handNo then self:_barrierOp(early[i].op, early[i].d) end
+      end
+    end
 
   elseif op == OP.SNAPSHOT then
     -- already running on our own witnessed state; ignore a late snapshot
 
-  elseif op == OP.SEEDCMT then
-    self.commits[d.seat] = d.commit
-
-  elseif op == OP.SEEDREVEAL then
-    if self.commits[d.seat] and not Commit.verifySeed(self.commits[d.seat], d.r, d.salt) then
-      return self:_abort(Verify.CODE.SEED, "seat " .. d.seat .. " seed does not open its commitment")
-    end
-    self.reveals[d.seat] = { r = d.r, salt = d.salt }
+  elseif op == OP.SEEDCMT or op == OP.SEEDREVEAL or op == OP.STATEHASH then
+    self:_barrierOp(op, d)
 
   elseif op == OP.DECKCMT then
     self.deckCommits = d.commits
     self:_tryVerifyHole()
     self:_tryVerifyReveals()
-
-  elseif op == OP.STATEHASH then
-    self.stateHashes[d.seat] = d.H
 
   elseif op == OP.HOLE then
     if d.seat == self.me then self.pendingHole = d.reveals; self:_tryVerifyHole() end
@@ -225,6 +264,21 @@ function Client:onMessage(sender, payload, channel)
   end
 
   self:_advance()
+end
+
+-- a peer's barrier contribution (seed commit / reveal / statehash) — shared by the
+-- live path and the early-message replay at HANDSTART
+function Client:_barrierOp(op, d)
+  if op == OP.SEEDCMT then
+    self.commits[d.seat] = d.commit
+  elseif op == OP.SEEDREVEAL then
+    if self.commits[d.seat] and not Commit.verifySeed(self.commits[d.seat], d.r, d.salt) then
+      return self:_abort(Verify.CODE.SEED, "seat " .. d.seat .. " seed does not open its commitment")
+    end
+    self.reveals[d.seat] = { r = d.r, salt = d.salt }
+  elseif op == OP.STATEHASH then
+    self.stateHashes[d.seat] = d.H
+  end
 end
 
 function Client:_act(toCall, minRaise, actionNo)

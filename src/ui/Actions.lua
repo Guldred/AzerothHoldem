@@ -73,6 +73,32 @@ local function build()
   bar.qMax = quick("All-in", function() return bar._max end)
   bar.qMax:SetWidth(44); bar.qMax:SetHeight(20); bar.qMax:SetPoint("LEFT", bar.qPot, "RIGHT", 3, 0)
 
+  -- pre-actions (armed while WAITING for your turn; fire instantly when it comes):
+  -- "Check/Fold" = check if free else fold; "Call any" = call whatever (check if free).
+  -- Mutually exclusive; cleared after firing. Checked state lives in our own _on
+  -- field (the template's GetChecked is unreliable under the test stub).
+  local function mkPre(label, x, y)
+    local cb = CreateFrame("CheckButton", nil, bar, "UICheckButtonTemplate")
+    cb:SetWidth(18); cb:SetHeight(18); cb:SetPoint("BOTTOMLEFT", x, y)
+    cb._on = false
+    cb.label = W.label(bar, label, "GameFontNormalSmall", "LEFT")
+    cb.label:SetPoint("LEFT", cb, "RIGHT", 1, 0)
+    return cb
+  end
+  bar.preCF = mkPre("Check/Fold", 462, 22)
+  bar.preCall = mkPre("Call any", 462, 3)
+  local function setPre(cb, on)
+    cb._on = on and true or false
+    if cb.SetChecked then cb:SetChecked(cb._on) end
+  end
+  bar.preCF:SetScript("OnClick", function()
+    setPre(bar.preCF, not bar.preCF._on); if bar.preCF._on then setPre(bar.preCall, false) end
+  end)
+  bar.preCall:SetScript("OnClick", function()
+    setPre(bar.preCall, not bar.preCall._on); if bar.preCall._on then setPre(bar.preCF, false) end
+  end)
+  bar._setPre = setPre
+
   bar._buttons = { bar.fold, bar.check, bar.call, bar.raise, bar.qMin, bar.qPot, bar.qMax }
   ns.UI.actionBar = bar
 end
@@ -100,7 +126,42 @@ local function refresh(v)
     if ns.Log then ns.Log.error("Action refused: " .. tostring(v.refused) .. " — try again.") end
   end
 
-  if not (v and v.myTurn and not v.aborted) then setActive(false); bar._lastTurn = false; return end
+  -- pre-action boxes show while a hand is live and it's NOT your turn
+  local inHand = v and v.toAct and not v.aborted and not v.deltas
+  if inHand and not v.myTurn then
+    bar.preCF:Show(); bar.preCall:Show()
+    bar.preCF.label:Show(); bar.preCall.label:Show()
+  else
+    bar.preCF:Hide(); bar.preCall:Hide()
+    bar.preCF.label:Hide(); bar.preCall.label:Hide()
+  end
+  if v and v.deltas then                            -- hand over: disarm leftovers
+    bar._setPre(bar.preCF, false); bar._setPre(bar.preCall, false)
+  end
+
+  if not (v and v.myTurn and not v.aborted) then
+    setActive(false); bar._lastTurn = false
+    if ns.setTurnAlert then ns.setTurnAlert(false) end
+    return
+  end
+
+  -- your turn: armed pre-action fires instantly (then disarms)
+  if not bar._lastTurn then
+    if bar.preCF._on then
+      bar._setPre(bar.preCF, false); bar._setPre(bar.preCall, false)
+      bar._lastTurn = true
+      act(v.canCheck and A.CHECK or A.FOLD)
+      return
+    elseif bar.preCall._on then
+      bar._setPre(bar.preCF, false); bar._setPre(bar.preCall, false)
+      bar._lastTurn = true
+      act((v.toCall or 0) > 0 and A.CALL or A.CHECK)
+      return
+    end
+    -- no pre-action: ping the player (sound + minimap flash) once per turn
+    if type(PlaySound) == "function" then PlaySound("ReadyCheck") end
+    if ns.setTurnAlert then ns.setTurnAlert(true) end
+  end
 
   -- the host's EXACT legal actions decide everything — never inferred from toCall
   -- (a big blind facing callers has toCall=0 but must RAISE, not BET)

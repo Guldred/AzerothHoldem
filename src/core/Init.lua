@@ -297,8 +297,50 @@ local handlers = {
   pause = function()
     if not (ns.casino and ns.casino.tableHost) then return Log.info("You are not hosting a table.") end
     local _, nowPaused = ns.casino:pauseTable()
-    if nowPaused then Log.info("Table paused — break time! (A live hand still finishes.)")
-    else Log.info("Break over — dealing continues.") end
+    if nowPaused then Log.info("Table paused — break time! (Turn clock stopped; the current hand can be finished at leisure.)")
+    else Log.info("Break over — the clock is back on and dealing continues.") end
+  end,
+  sitout = function()
+    if not ns.casino then return end
+    local ok, res = ns.casino:sitOut()
+    if not ok then return Log.error("Can't sit out: " .. tostring(res)) end
+    if res then Log.info("Sitting out — you keep your seat and chips; hands skip you until you return.")
+    else Log.info("You're back in — dealt from the next hand.") end
+  end,
+  fair = function()
+    if ns.UI and ns.UI.showFairness then ns.UI.showFairness() end
+  end,
+  scale = function(a)
+    local s = tonumber(a[2])
+    if not s or s < 0.5 or s > 2 then return Log.info("/azh scale 0.5 – 2.0 (current " .. tostring(ns.db.uiScale or 1) .. ")") end
+    ns.db.uiScale = s
+    if ns.UI then
+      for _, f in ipairs({ ns.UI.tableFrame, ns.UI.lobbyPanel, ns.UI.fairnessPanel }) do
+        if f and f.SetScale then f:SetScale(s) end
+      end
+    end
+    Log.info("UI scale " .. s)
+  end,
+  frames = function()
+    -- stray-frame triage: name every visual this addon owns and whether it is on
+    -- screen right now. If some on-screen artifact is NOT listed as SHOWN here,
+    -- it is not from Azeroth Hold'em — hover it and use Blizzard's /framestack
+    -- (Blizzard_DebugTools) to identify its owner.
+    local list = {
+      { "table window", ns.UI and ns.UI.tableFrame },
+      { "lobby window", ns.UI and ns.UI.lobbyPanel },
+      { "fairness report", ns.UI and ns.UI.fairnessPanel },
+      { "minimap button", ns.minimapButton },
+    }
+    Log.info("Frames owned by Azeroth Hold'em:")
+    for _, e in ipairs(list) do
+      local f = e[2]
+      if f then
+        local shown = (f.IsShown and f:IsShown()) and "|cff66ff66SHOWN|r" or "hidden"
+        Log.info("  " .. e[1] .. " — " .. shown)
+      end
+    end
+    Log.info("Anything else on screen is not ours — hover it and run /framestack to name it.")
   end,
   mode = function(a)
     local m = (a[2] or ""):upper()
@@ -331,6 +373,64 @@ local function onSlash(msg)
   if h then h(a) else
     Log.info("/azh — open the casino window. Also: open | sit <host> | stand | close | mode guild/group | tables | status")
     Log.info("manual play: host [sb] [bb] | join | start | fold | check | call | raise N | bet N | log N")
+  end
+end
+
+-- ---------------------------------------------------------------------------
+-- minimap button: one click to the casino; flashes (and pings once) on your turn
+-- ---------------------------------------------------------------------------
+local function makeMinimapButton()
+  if not Minimap or ns.minimapButton then return end
+  local b = CreateFrame("Button", "AzerothHoldemMinimapButton", Minimap)
+  b:SetWidth(31); b:SetHeight(31)
+  if b.SetFrameStrata then b:SetFrameStrata("MEDIUM") end
+  local icon = b:CreateTexture(nil, "BACKGROUND")
+  icon:SetWidth(20); icon:SetHeight(20); icon:SetPoint("CENTER", 0, 1)
+  icon:SetTexture("Interface\\AddOns\\AzerothHoldem\\art\\dealer.tga")
+  local ring = b:CreateTexture(nil, "OVERLAY")
+  ring:SetWidth(53); ring:SetHeight(53); ring:SetPoint("TOPLEFT")
+  ring:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+  b.glow = b:CreateTexture(nil, "ARTWORK")                 -- your-turn flash
+  b.glow:SetWidth(31); b.glow:SetHeight(31); b.glow:SetPoint("CENTER", 0, 1)
+  b.glow:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
+  if b.glow.SetBlendMode then b.glow:SetBlendMode("ADD") end
+  b.glow:Hide()
+
+  local function place()
+    local angle = math.rad(ns.db.minimapAngle or 200)
+    b:ClearAllPoints()
+    b:SetPoint("CENTER", Minimap, "CENTER", 80 * math.cos(angle), 80 * math.sin(angle))
+  end
+  place()
+  b:RegisterForDrag("LeftButton")
+  b:SetScript("OnDragStart", function() b._drag = true end)
+  b:SetScript("OnDragStop", function() b._drag = false end)
+  b:SetScript("OnUpdate", function(self, e)
+    if self._drag and type(GetCursorPosition) == "function" then
+      local mx, my = Minimap:GetCenter()
+      local cx, cy = GetCursorPosition()
+      -- divide the PHYSICAL cursor coords by the MINIMAP's effective scale (the
+      -- LibDBIcon idiom) — UIParent's scale is wrong whenever the minimap is scaled
+      local s = (Minimap.GetEffectiveScale and Minimap:GetEffectiveScale()) or 1
+      if mx and my then
+        ns.db.minimapAngle = math.deg(math.atan2(cy / s - my, cx / s - mx))
+        place()
+      end
+    end
+    if self.glow:IsShown() then
+      self._t = (self._t or 0) + (e or 0)
+      self.glow:SetAlpha(0.55 + 0.45 * math.sin(self._t * 5))
+    end
+  end)
+  b:SetScript("OnClick", function() onSlash("") end)
+  ns.minimapButton = b
+end
+
+-- the UI tells us when it's (not) the player's turn: flash the minimap button
+function ns.setTurnAlert(on)
+  local b = ns.minimapButton
+  if b then
+    if on then b.glow:Show() else b.glow:Hide() end
   end
 end
 
@@ -373,6 +473,12 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4)
     SLASH_AZEROTHHOLDEM1 = "/azh"
     SLASH_AZEROTHHOLDEM2 = "/azerothholdem"
     SlashCmdList["AZEROTHHOLDEM"] = onSlash
+    if ns.db.uiScale and ns.UI then                  -- saved UI scale (/azh scale N)
+      for _, fr in ipairs({ ns.UI.tableFrame, ns.UI.lobbyPanel, ns.UI.fairnessPanel }) do
+        if fr and fr.SetScale then fr:SetScale(ns.db.uiScale) end
+      end
+    end
+    makeMinimapButton()
     Log.info("loaded — type /azh to open the casino.")
   elseif event == "CHAT_MSG_ADDON" then
     -- arg1=prefix, arg2=message, arg3=channel, arg4=sender. No RegisterAddonMessagePrefix

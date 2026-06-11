@@ -73,6 +73,13 @@ local function build()
   frame.pause:SetWidth(70); frame.pause:SetHeight(18)
   frame.pause:SetPoint("TOPRIGHT", -102, -4)
   frame.pause:Hide()
+  -- players only (same slot as the host's Pause): skip hands without losing the seat
+  frame.sitout = W.button(frame, "Sit Out", function()
+    if ns.onSlash then ns.onSlash("sitout") end
+  end)
+  frame.sitout:SetWidth(70); frame.sitout:SetHeight(18)
+  frame.sitout:SetPoint("TOPRIGHT", -102, -4)
+  frame.sitout:Hide()
 
   -- the table itself: a stadium poker table (wood rail + felt + board inlay).
   -- Cards/pot/seats anchor to frame.felt's CENTER; the art's inlay/stencil were
@@ -182,14 +189,16 @@ local function refresh(v)
     if ns.casino.tableHost then
       pausedNow = ns.casino.tableHost.paused or false
       frame.pause:SetText(pausedNow and "Resume" or "Pause")
-      frame.pause:Show()
+      frame.pause:Show(); frame.sitout:Hide()
     else
       frame.pause:Hide()
+      frame.sitout:SetText(ns.casino.amSittingOut and "I'm Back" or "Sit Out")
+      frame.sitout:Show()
       local t = ns.casino.seatedAt and ns.casino.lobby:get(ns.casino.seatedAt)
       pausedNow = (t and t.paused) or false
     end
   else
-    frame.leave:Hide(); frame.pause:Hide()
+    frame.leave:Hide(); frame.pause:Hide(); frame.sitout:Hide()
   end
 
   frame.pot:SetText(W.commas(v.pot or 0))
@@ -242,27 +251,37 @@ local function refresh(v)
   frame.winText:SetText(winLine and ("|cffffd95c" .. winLine .. "|r") or "")
 
   -- turn countdown: the host knows the exact ticks left; clients count down locally
-  -- from the announced timeout, restarting whenever the turn moves to a new seat
+  -- from the announced timeout, restarting whenever the turn moves to a new seat.
+  -- A paused table shows NO clock (the host froze the turn timer — resuming
+  -- restarts it fresh, so the local count restarts on the resume edge too).
   local secsLeft
   if v.turnLeft then
     secsLeft = v.turnLeft
   elseif v.toAct and v.turnTimeout and type(GetTime) == "function" then
-    if frame._turnSeat ~= v.toAct then frame._turnSeat = v.toAct; frame._turnT0 = GetTime() end
+    if frame._turnSeat ~= v.toAct or (frame._wasPaused and not pausedNow) then
+      frame._turnSeat = v.toAct; frame._turnT0 = GetTime()
+    end
     secsLeft = math.max(0, floor(v.turnTimeout - (GetTime() - (frame._turnT0 or 0))))
   end
   if not v.toAct then frame._turnSeat = nil end
-  local clock = secsLeft and ("  |cff" .. (secsLeft <= 10 and "ff5555" or "aaaaaa") .. secsLeft .. "s|r") or ""
+  frame._wasPaused = pausedNow
+  local clock = (secsLeft and not pausedNow)
+    and ("  |cff" .. (secsLeft <= 10 and "ff5555" or "aaaaaa") .. secsLeft .. "s|r") or ""
 
   local STREET = { [0] = "pre-flop", [1] = "flop", [2] = "turn", [3] = "river" }
   local statusText
   if v.aborted then statusText = "|cffff4444HALTED|r"
+  elseif ns.casino and ns.casino.amSittingOut then
+    statusText = "|cff9ad0ffSitting out — click \"I'm Back\" to be dealt in.|r"
   elseif winLine and pausedNow then statusText = "Hand complete — |cff9ad0fftable paused for a break|r"
   elseif winLine then statusText = "Hand complete — next deal in a moment…"
   elseif pausedNow and not v.toAct then statusText = "|cff9ad0ffTable paused — back soon!|r"
   elseif v.myTurn then statusText = "|cffffd95cYour turn!|r" .. clock
   elseif v.toAct then statusText = "Waiting for " .. tostring(v.toAct) .. "…" .. clock
   else statusText = "" end
-  if pausedNow and v.toAct then statusText = statusText .. "  |cff9ad0ff(break after this hand)|r" end
+  if pausedNow and v.toAct then
+    statusText = statusText .. "  |cff9ad0ff(break — no clock, finish at leisure)|r"
+  end
   if not winLine and STREET[v.street] then statusText = statusText .. "  (" .. STREET[v.street] .. ")" end
   frame.status:SetText(statusText)
 

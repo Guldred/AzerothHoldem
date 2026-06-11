@@ -66,6 +66,18 @@ local function count(t) local n = 0 for _ in pairs(t) do n = n + 1 end return n 
 
 function Host:_bcast(op, data) self.tp:post(Codec.encode(op, data), self.broadcast, nil) end
 
+-- halt this hand and SAY SO: sets the flags the UI renders (HALTED banner, trust
+-- line) and fires onCheat. A silent phase flip froze the host's table with no
+-- explanation — the worst possible failure mode for the dealer's own screen.
+function Host:_abort(code, detail)
+  if self.phase == PHASE.ABORT then return end
+  self.phase = PHASE.ABORT
+  self.aborted = true
+  self.abortReason = tostring(code) .. (detail and (": " .. detail) or "")
+  self.cheat = { code = code, detail = detail }
+  if self.cfg.onCheat then self.cfg.onCheat(code, detail) end
+end
+
 function Host:start()
   self.order = canonical(self.seats)
   self:_bcast(OP.HANDSTART, {
@@ -86,6 +98,13 @@ function Host:onMessage(sender, payload, channel)
   local op, d = Codec.decode(payload)
   if d == nil then return end
 
+  -- only THIS hand's messages may touch its state: a late/queued SEEDCMT, reveal,
+  -- statehash or intent from a PREVIOUS hand must never pollute the new hand's
+  -- barriers (a stale commit makes the fresh reveal look like a cheat and silently
+  -- wedges the table). RESYNC is exempt — a resyncing client's handNo IS stale.
+  if (op == OP.SEEDCMT or op == OP.SEEDREVEAL or op == OP.STATEHASH or op == OP.INTENT)
+      and d.handNo and d.handNo ~= self.handNo then return end
+
   -- only seats in THIS hand may contribute to its barriers or pull its state (a
   -- just-(re)joined spectator's stray commit must not trip the collect-all counts
   -- early, and RESYNC snapshots are for participants only)
@@ -100,7 +119,7 @@ function Host:onMessage(sender, payload, channel)
     self.commits[d.seat] = d.commit
   elseif op == OP.SEEDREVEAL then
     if self.commits[d.seat] and not Commit.verifySeed(self.commits[d.seat], d.r, d.salt) then
-      self.phase = PHASE.ABORT; self.abortReason = "bad seed reveal from " .. d.seat; return
+      return self:_abort("SEED", "bad seed reveal from " .. d.seat)
     end
     self.reveals[d.seat] = { r = d.r, salt = d.salt }
   elseif op == OP.STATEHASH then
@@ -111,7 +130,7 @@ function Host:onMessage(sender, payload, channel)
   elseif op == OP.RESYNC then
     self:_resync(d.seat); return
   elseif op == OP.CHEAT then
-    self.phase = PHASE.ABORT; self.abortReason = "client cheat: " .. (d.detail or ""); return
+    return self:_abort(d.code or "CHEAT", "peer-reported: " .. (d.detail or ""))
   end
   self:_advance()
 end
@@ -337,7 +356,28 @@ end
 -- host-provided commit data and missed the live STATEHASH gate); full independent
 -- verification resumes next hand. See DESIGN.md / README.
 function Host:_resync(seat)
-  if not self.dealer or self.phase == PHASE.DONE or self.phase == PHASE.ABORT then return end
+  if self.phase == PHASE.DONE or self.phase == PHASE.ABORT then return end
+  if not self.dealer then
+    -- pre-deal: the requester missed the HANDSTART (loading screen right at the
+    -- deal). Re-send it plus every barrier contribution collected so far, all
+    -- targeted — the original broadcasts are gone and nobody re-sends them. The
+    -- client's order-tolerant barrier path absorbs these and the hand can still
+    -- deal without burning a watchdog redeal.
+    self.tp:sendReliable(Codec.encode(OP.HANDSTART, {
+      handNo = self.handNo, button = self.cfg.buttonSeat, sb = self.cfg.sb,
+      bb = self.cfg.bb, ante = self.cfg.ante or 0, seats = self.seats, stacks = self.cfg.stacks,
+    }), seat)
+    for s2, c in pairs(self.commits) do
+      self.tp:sendReliable(Codec.encode(OP.SEEDCMT, { handNo = self.handNo, seat = s2, commit = c }), seat)
+    end
+    if self.sentReveal then
+      for s2, rv in pairs(self.reveals) do
+        self.tp:sendReliable(Codec.encode(OP.SEEDREVEAL,
+          { handNo = self.handNo, seat = s2, r = rv.r, salt = rv.salt }), seat)
+      end
+    end
+    return
+  end
   local rules = self.dealer.rules
   local seatInfo = {}
   for i = 1, #self.seats do
@@ -375,7 +415,10 @@ function Host:_sendEquivocatedDeck()
   end
 end
 
-function Host:tick()
+-- frozen = the table is on a break: the turn CLOCK stops (nobody is auto-folded
+-- during a pause — players expect "pause" to mean no time pressure), but network
+-- reliability (the statehash resend) keeps running.
+function Host:tick(frozen)
   self.ticks = self.ticks + 1
   if self.phase == PHASE.STATEHASH and self.S and self.ticks % self.deadlineTicks == 0 then
     for i = 1, #self.seats do
@@ -389,6 +432,7 @@ function Host:tick()
   -- turn timeout (online-poker convention): an unresponsive player auto-CHECKS
   -- when checking is free, otherwise folds — applies to every human seat, the
   -- (human) dealer included, so nobody can hold the table hostage.
+  if frozen then return end
   if self.phase == PHASE.BETTING and self.dealer then
     local seat = self.dealer.rules.toAct
     if seat and (seat ~= self.me or self.human) then

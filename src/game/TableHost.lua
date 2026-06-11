@@ -35,7 +35,7 @@ function TableHost.new(cfg)
     -- wait for more players; afterwards hands continue automatically. Tests pass
     -- autoStart=true to keep driving tables without UI interaction.
     started = cfg.autoStart or false,
-    pendingSeat = {}, pendingLeave = {}, lastStack = {},
+    pendingSeat = {}, pendingLeave = {}, lastStack = {}, sitOut = {},
   }, TableHost)
   self:_seat(cfg.tableId)                       -- the dealer plays too
   return self
@@ -55,6 +55,7 @@ end
 
 function TableHost:_unseat(player)
   if not self.ledger:isSeated(player) then return end
+  self.sitOut[player] = nil
   self.lastStack[player] = self.ledger:stack(player)   -- remembered for a re-sit
   self.ledger:cashOut(player)
   for i = #self.order, 1, -1 do if self.order[i] == player then table.remove(self.order, i) end end
@@ -68,8 +69,22 @@ function TableHost:_seatList()
 end
 
 function TableHost:_broadcastSeats()
-  self.cfg.postControl(Codec.encode(OP.SEAT, { tableId = self.id, players = self:_seatList() }), self.broadcast)
+  self.cfg.postControl(Codec.encode(OP.SEAT, {
+    tableId = self.id, players = self:_seatList(), sitout = self.sitOut,
+  }), self.broadcast)
   self:advertise(true)    -- keep the lobby's seat counts + player names fresh (rate-limited)
+end
+
+-- a seated player toggles sitting out: they keep their seat and stack but are not
+-- dealt into hands (takes effect at the next deal; a live hand plays out normally).
+-- Mid-hand joiners (still in pendingSeat) count too — dropping their request after
+-- the UI already said "sitting out" dealt them in against their will.
+-- The dealer cannot sit out — the protocol needs its seed contribution; hosts Pause.
+function TableHost:onSitOut(player, away)
+  if player == self.id then return end
+  if not (self.ledger:isSeated(player) or self.pendingSeat[player]) then return end
+  self.sitOut[player] = away and true or nil
+  self:_broadcastSeats()
 end
 
 -- onDemand: a floor PING / seating change asked for an immediate ad (rate-limited
@@ -98,8 +113,18 @@ end
 
 function TableHost:onLeave(player)
   self.pendingSeat[player] = nil    -- leaving cancels a not-yet-processed join
+  self.sitOut[player] = nil         -- (incl. a sit-out flag noted while still pending)
   if not self.ledger:isSeated(player) then return end
+  -- a live hand only matters if the leaver is actually IN it — a sitting-out
+  -- player (seated, not dealt) walking away must not tear down everyone else's
+  -- in-flight handshake or get folded into a hand they were never part of.
+  local inHand = false
   if self.host then
+    for i = 1, #self.host.seats do
+      if self.host.seats[i] == player then inHand = true break end
+    end
+  end
+  if inHand and self.host.phase ~= Host.PHASE.DONE then
     self.pendingLeave[player] = true               -- remove from the table next hand
     local ph = self.host.phase
     if ph == "commit" or ph == "reveal" or ph == "statehash" then
@@ -130,15 +155,25 @@ function TableHost:startHand()
   for i = #self.order, 1, -1 do                            -- bust out anyone at 0 chips
     if self.ledger:stack(self.order[i]) == 0 then self:_unseat(self.order[i]) end
   end
-  if #self.order < 2 then return false, "need 2+ players" end
+  -- sitting-out players keep their seats/stacks but are not dealt in
+  local active = {}
+  for i = 1, #self.order do
+    local p = self.order[i]
+    if not self.sitOut[p] then active[#active + 1] = p end
+  end
+  if #active < 2 then return false, "need 2+ players" end
   self:_broadcastSeats()                            -- announce final seating so new joiners spawn their client
 
   if self.buttonIdx > #self.order then self.buttonIdx = 1 end
+  for _ = 1, #self.order do                         -- the button skips sitting-out seats
+    if not self.sitOut[self.order[self.buttonIdx]] then break end
+    self.buttonIdx = (self.buttonIdx % #self.order) + 1
+  end
   local button = self.order[self.buttonIdx]
   local stacks, startStacks = {}, {}
-  for _, p in ipairs(self.order) do stacks[p] = self.ledger:stack(p); startStacks[p] = stacks[p] end
+  for _, p in ipairs(active) do stacks[p] = self.ledger:stack(p); startStacks[p] = stacks[p] end
   self.startStacks = startStacks
-  self.handSeats = self:_seatList()
+  self.handSeats = active
   self.handNo = self.handNo + 1
 
   self.host = Host.new({
@@ -202,21 +237,89 @@ function TableHost:startGame()
   return self:startHand()
 end
 
--- break time: a live hand always finishes (freezing mid-decision would wreck
--- timers); while paused no NEW hand is dealt. The state rides the table ad so
--- every player and the lobby see the break immediately.
+-- break time: while paused no NEW hand is dealt, and the live hand's turn CLOCK
+-- stops (a break means no time pressure — nobody gets auto-folded during it; the
+-- hand can still be played out by willing players). Resuming restarts the clock
+-- fresh for whoever is to act. The state rides the table ad so every player and
+-- the lobby see the break immediately.
 function TableHost:setPaused(p)
   self.paused = p and true or false
+  if not self.paused then
+    if self.host and self.host.phase == Host.PHASE.BETTING then
+      self.host.turnTicks = 0     -- back from the break: full time to decide
+    end
+    self.handshakeTicks = 0       -- the handshake watchdog restarts fresh too
+  end
   self:advertise()
   return self.paused
 end
 
+-- pre-deal handshake watchdog: the commit/reveal/statehash barriers are collect-ALL,
+-- so one player missing the HANDSTART (loading screen, brief dc — typically right
+-- after a break) used to wedge the table forever. No money has moved pre-deal, so
+-- after `handshakeTimeout` ticks the hand is abandoned and redealt; a seat that
+-- stalls the handshake twice in a row is unseated (they re-sit when they're back).
+-- The timeout must leave room for the in-protocol repairs to land first (the
+-- host's statehash-deadline resend fires at tick 20, the RESYNC heal needs a
+-- round trip) — hence the 45-tick default, NOT 20. Frozen while paused: a break
+-- means no pressure on the handshake either, and pausing is the host's natural
+-- reaction to a visibly stalled deal.
+function TableHost:_handshakeWatchdog()
+  local ph = self.host and self.host.phase
+  if not (ph == "commit" or ph == "reveal" or ph == "statehash") then
+    self.handshakeTicks = 0
+    -- a handshake genuinely completed (not our own abandon parked at DONE): clean slate
+    if ph and not self.host.abandonedHandshake then self.handshakeStrikes = nil end
+    return
+  end
+  if self.paused then return end
+  self.handshakeTicks = (self.handshakeTicks or 0) + 1
+  if self.handshakeTicks < (self.cfg.handshakeTimeout or 45) then return end
+  self.handshakeTicks = 0
+  local h = self.host
+  local strikes = self.handshakeStrikes or {}
+  self.handshakeStrikes = {}
+  for i = 1, #h.seats do
+    local seat = h.seats[i]
+    if not (h.commits[seat] and (ph == "commit" or h.reveals[seat])
+        and (ph ~= "statehash" or h.stateHashes[seat])) then
+      if strikes[seat] then self:_unseat(seat)       -- second stall in a row: let them go
+      else self.handshakeStrikes[seat] = true end
+    end
+  end
+  -- abandon: no stacks changed pre-deal. The dead Host object is kept (inert at
+  -- DONE) so the dealer's table window survives until the redeal — clearing it
+  -- made activeSession() nil and the whole window (Pause button included) vanish.
+  h.abandonedHandshake = true
+  h.phase = Host.PHASE.DONE
+  self.cfg.registerHost(self.id, nil)
+  self.restTicks = self.restDelay
+  self:_broadcastSeats()
+end
+
+-- a cheat report that arrives BETWEEN hands: the end-of-hand audit runs on the
+-- clients after HANDEND/ENDREVEAL, when the per-hand host is already unregistered
+-- — without this hook the dealer would never see it and the table would happily
+-- keep dealing while every honest client sits halted.
+function TableHost:onCheatReport(sender, d)
+  self.halted = true
+  if self.host then                  -- the retained host: flag it so the UI shows HALTED
+    self.host.aborted = true
+    self.host.cheat = { code = d.code, detail = d.detail }
+    self.host.phase = Host.PHASE.ABORT
+  end
+  if self.cfg.onCheat then
+    self.cfg.onCheat(d.code, "reported by " .. tostring(sender) .. ": " .. (d.detail or ""))
+  end
+end
+
 function TableHost:tick(dt)
   self.ticks = self.ticks + (dt or 1)
-  if self.host then self.host:tick() end            -- drive the live hand's deadlines/timeouts
+  if self.host then self.host:tick(self.paused) end  -- paused = the turn clock is frozen
+  self:_handshakeWatchdog()
   if self.open and self.ticks % self.adInterval == 0 then self:advertise() end
   if self.restTicks > 0 then self.restTicks = self.restTicks - 1 end
-  if self.open and self.started and not self.paused
+  if self.open and self.started and not self.paused and not self.halted
       and (not self.host or self.host.phase == Host.PHASE.DONE)
       and self.restTicks == 0 and #self.order >= 2 then
     self:startHand()

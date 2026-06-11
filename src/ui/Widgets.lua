@@ -446,8 +446,16 @@ function ns.UI.viewOf(s)
   local v = {
     me = s.me, phase = s.phase, aborted = s.aborted, cheat = s.cheat,
     holeVerified = s.holeVerified, auditPassed = s.auditPassed, sealed = s.S ~= nil,
+    -- fairness-report states: each gate only counts once it actually PASSED —
+    -- "sealed" alone used to light rows whose checks hadn't run yet
+    deckCommitted = s.deckCommits ~= nil,
+    resumed = s.resumed or nil,           -- mid-hand rejoin: reduced guarantee this hand
     board = {}, hole = {},
   }
+  -- the cross-client same-deck gate has passed once the session moved beyond the
+  -- statehash barrier (host: dealt+betting; client: deal phase) on witnessed state
+  v.crossChecked = (not s.resumed)
+    and (s.phase == "betting" or s.phase == "deal" or s.phase == "done") or false
   if s.dealer then
     v.isHost = true
     local r = s.dealer.rules

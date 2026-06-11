@@ -58,9 +58,14 @@ local function build()
   panel.empty = W.label(panel, "", "GameFontDisableSmall")
   panel.empty:SetPoint("TOPLEFT", 16, -86)
 
-  -- your standing + actions
+  -- your standing + actions. The status gets its OWN full-width row above the
+  -- buttons — anchored next to them it overlapped "Need 2+"/"Close Table" the
+  -- moment the text grew ("Waiting for players — 1 seated…", screenshot bug).
+  -- Width + height are clamped so a long line clips instead of wandering.
   panel.status = W.label(panel, "", "GameFontNormalSmall", "LEFT")
-  panel.status:SetPoint("BOTTOMLEFT", 14, 76); panel.status:SetTextColor(rgba(COL.gold))
+  panel.status:SetPoint("BOTTOMLEFT", 14, 96)
+  panel.status:SetWidth(352); panel.status:SetHeight(13)
+  panel.status:SetTextColor(rgba(COL.gold))
   panel.leave = W.button(panel, "Leave Table", function() if ns.onSlash then ns.onSlash("stand") end end)
   panel.leave:SetWidth(100); panel.leave:SetPoint("BOTTOMRIGHT", -12, 70); panel.leave:Hide()
   panel.closeT = W.button(panel, "Close Table", function() if ns.onSlash then ns.onSlash("close") end end)

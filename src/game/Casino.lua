@@ -63,7 +63,14 @@ function Casino:onWire(sender, wire, channel)
   local tag, payload = wire:sub(1, i - 1), wire:sub(i + 1)
   if tag == LOBBY then return self:_control(sender, payload, channel) end
   local s = self.sessions[tag]
-  if s then s:onMessage(sender, payload, channel) end       -- only participants hold a session
+  if s then return s:onMessage(sender, payload, channel) end  -- only participants hold a session
+  -- our table, but the per-hand host is unregistered (between hands): a CHEAT
+  -- report from a client's END-OF-HAND audit lands exactly here — the dealer must
+  -- see it and the table must halt, not deal on while every honest client froze.
+  if self.tableHost and tag == self.me then
+    local op, d = Codec.decode(payload)
+    if op == OP.CHEAT and d then self.tableHost:onCheatReport(sender, d) end
+  end
 end
 
 -- entering the floor (or refreshing the list): ask every host to re-advertise NOW,
@@ -100,10 +107,21 @@ function Casino:_control(sender, payload, channel)
     if self.cfg.onNotice then self.cfg.onNotice(d.reason) end
   elseif op == OP.LEAVE then
     if self.tableHost and d.table == self.me then
-      self.tableHost:onLeave((d.player ~= "" and d.player) or sender)
+      -- ALWAYS act on the actual sender: the payload's player field is attacker-
+      -- controlled (anyone on the channel could forge a leave/sit-out for someone
+      -- else — a mid-hand forged leave even auto-folds the victim). Legitimate
+      -- senders only ever leave/sit-out themselves.
+      if d.mode == "sitout" then self.tableHost:onSitOut(sender, true)
+      elseif d.mode == "return" then self.tableHost:onSitOut(sender, false)
+      else self.tableHost:onLeave(sender) end
     end
   elseif op == OP.SEAT then
     self.seats[d.tableId] = d.players
+    self.sitouts = self.sitouts or {}
+    self.sitouts[d.tableId] = d.sitout or {}
+    if self.seatedAt == d.tableId then              -- track our own away state for the UI
+      self.amSittingOut = (d.sitout and d.sitout[self.me]) and true or false
+    end
     if self.seatedAt == d.tableId then
       local mine = false
       for k = 1, #d.players do if d.players[k] == self.me then mine = true; break end end
@@ -171,7 +189,7 @@ function Casino:leave()
   if not self.seatedAt then return end
   self:_send(LOBBY, Codec.encode(OP.LEAVE, { table = self.seatedAt, player = self.me }), self.broadcast, nil)
   self.sessions[self.seatedAt] = nil
-  self.client, self.seatedAt = nil, nil
+  self.client, self.seatedAt, self.amSittingOut = nil, nil, false
 end
 
 function Casino:changeTable(tableId) self:leave(); self:join(tableId) end
@@ -201,6 +219,19 @@ end
 function Casino:pauseTable()
   if not self.tableHost then return false, "not hosting a table" end
   return true, self.tableHost:setPaused(not self.tableHost.paused)
+end
+
+-- toggle sitting out (keep the seat + stack, skip the deals). Hosts can't — the
+-- dealer must play (they Pause the table instead).
+function Casino:sitOut()
+  if self.tableHost then return false, "you are the dealer — pause the table instead" end
+  if not self.seatedAt then return false, "not seated at a table" end
+  local going = not self.amSittingOut
+  self.amSittingOut = going                          -- optimistic; SEAT broadcast confirms
+  self:_send(LOBBY, Codec.encode(OP.LEAVE, {
+    table = self.seatedAt, player = self.me, mode = going and "sitout" or "return",
+  }), self.broadcast, nil)
+  return true, going
 end
 
 function Casino:humanAct(action, amount)
