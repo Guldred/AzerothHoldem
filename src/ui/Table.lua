@@ -15,9 +15,17 @@ local function makeSeatBox(parent)
   local b = CreateFrame("Frame", nil, parent)
   b:SetWidth(96); b:SetHeight(42)
   b.glow = b:CreateTexture(nil, "BACKGROUND")
-  b.glow:SetPoint("TOPLEFT", -3, 3); b.glow:SetPoint("BOTTOMRIGHT", 3, -3)
-  b.glow:SetTexture(rgba(COL.turn)); b.glow:Hide()
-  b.bg = b:CreateTexture(nil, "BORDER"); b.bg:SetAllPoints(b); b.bg:SetTexture(0, 0, 0, 0.6)
+  if W.artOK(W.ART.glow) then                      -- soft gold halo, pulsed when active
+    b.glow:SetPoint("TOPLEFT", -8, 8); b.glow:SetPoint("BOTTOMRIGHT", 8, -8)
+    b.glow:SetTexture(W.ART.glow)
+  else
+    b.glow:SetPoint("TOPLEFT", -3, 3); b.glow:SetPoint("BOTTOMRIGHT", 3, -3)
+    b.glow:SetTexture(rgba(COL.turn))
+  end
+  b.glow:Hide()
+  b.bg = b:CreateTexture(nil, "BORDER"); b.bg:SetAllPoints(b)
+  if W.artOK(W.ART.plate) then b.bg:SetTexture(W.ART.plate)   -- rounded seat plate
+  else b.bg:SetTexture(0, 0, 0, 0.6) end
   b.name = W.label(b, "", "GameFontNormalSmall"); b.name:SetPoint("TOP", 0, -3)
   b.stack = W.label(b, "", "GameFontHighlightSmall"); b.stack:SetPoint("TOP", b.name, "BOTTOM", 0, -1)
   b.bet = W.label(b, "", "GameFontNormalSmall"); b.bet:SetPoint("BOTTOM", 0, 2); b.bet:SetTextColor(rgba(COL.gold))
@@ -35,12 +43,18 @@ local function build()
   frame = W.panel(UIParent, 560, 380, "Azeroth Hold'em")
   frame:SetPoint("CENTER")
 
-  -- felt oval (a tinted inset; a rounded look isn't possible without art, so a
-  -- darker rail border around a green felt fill reads as a table)
+  -- the table itself: a stadium poker table (wood rail + felt + board inlay).
+  -- Cards/pot/seats anchor to frame.felt's CENTER; the art's inlay/stencil were
+  -- drawn for this 544x292 mapping (see art/build_ui.sh) — move them together.
   frame.felt = frame:CreateTexture(nil, "BACKGROUND")
-  frame.felt:SetPoint("TOPLEFT", 16, -28); frame.felt:SetPoint("BOTTOMRIGHT", -16, 70)
-  if W.artOK(W.ART.felt) then frame.felt:SetTexture(W.ART.felt)   -- real green felt
-  else frame.felt:SetTexture(rgba(COL.felt)) end                  -- fallback: solid green
+  if W.artOK(W.ART.table) then
+    frame.felt:SetPoint("TOPLEFT", 8, -24); frame.felt:SetPoint("BOTTOMRIGHT", -8, 64)
+    frame.felt:SetTexture(W.ART.table)
+  else
+    frame.felt:SetPoint("TOPLEFT", 16, -28); frame.felt:SetPoint("BOTTOMRIGHT", -16, 70)
+    if W.artOK(W.ART.felt) then frame.felt:SetTexture(W.ART.felt)  -- flat felt
+    else frame.felt:SetTexture(rgba(COL.felt)) end                 -- solid green
+  end
 
   -- pot (a chip stack if we have the art, else the built-in gold coin)
   frame.potChip = W.tex(frame, "ARTWORK")

@@ -9,9 +9,14 @@ the `.toc`.
 | File         | Size (px) | What it is            | Source / license |
 |--------------|-----------|-----------------------|------------------|
 | `cards.tga`  | 1024×1024 | 52 card faces + back  | **Faces:** Byron Knoll *Vector Playing Cards* — **public domain**. **Back:** generated here (CC0). |
-| `felt.tga`   | 512×512   | Green table felt      | Generated here with ImageMagick — **CC0**. |
+| `felt.tga`   | 512×512   | Green felt (fallback) | Generated here with ImageMagick — **CC0**. |
 | `chips.tga`  | 128×128   | Chip stack (the pot)  | Generated here with ImageMagick — **CC0**. |
 | `dealer.tga` | 64×64     | Dealer button         | Generated here with ImageMagick — **CC0**. |
+| `table.tga`  | 1024×512  | Stadium poker table (wood rail, felt, board inlay, stencil) | Generated here with ImageMagick — **CC0**. |
+| `btn.tga` / `btn_hover.tga` / `btn_push.tga` | 128×32 | Button states (casino leather + gold trim) | Generated here with ImageMagick — **CC0**. |
+| `plate.tga`  | 128×64    | Seat nameplate        | Generated here with ImageMagick — **CC0**. |
+| `glow.tga`   | 128×64    | Active-turn halo      | Generated here with ImageMagick — **CC0**. |
+| `panelbg.tga`| 256×256   | Panel cloth backdrop  | Generated here with ImageMagick — **CC0**. |
 
 ## Card faces — Byron Knoll "Vector Playing Cards" (public domain)
 
@@ -41,7 +46,12 @@ Both scripts require ImageMagick v7 (`magick`); the card script also needs `curl
 ```sh
 bash art/build_cards.sh      # downloads the PD SVGs, builds the 1024² card atlas
 bash art/build_textures.sh   # generates felt / chips / dealer button
+bash art/build_ui.sh         # generates the stadium table, buttons, plates, glow, panel cloth
 ```
+
+`build_ui.sh` encodes a layout contract with `src/ui/Table.lua` (the table art maps to a
+544×292 display area; the board inlay centers 28 px above the felt center where the
+community cards render) — change those offsets together.
 
 ### Card atlas layout (the contract `src/ui/Widgets.lua` relies on)
 
@@ -56,6 +66,15 @@ size in `build_cards.sh`, change it there too. The id→cell mapping was verifie
 decoding the shipped `cards.tga` and confirming all 52 cells match the canonical `cardName`.
 
 ## In-client checks (cannot be verified outside WoW)
+
+- **Button skin.** `W.button` overrides the `UIPanelButtonTemplate` textures via
+  `SetNormalTexture`/`SetHighlightTexture`/`SetPushedTexture`. Confirm hover/press states
+  read correctly and that very small buttons (the panel "X", the Min/Pot/All-in
+  quick-fills) don't squash the gold trim unpleasantly — if they do, the skin can be
+  limited to wider buttons in `W.button`.
+- **Table mapping.** The stadium table art replaces the felt rectangle; community cards
+  should sit inside the board inlay and seat plates ride the rail. If the inlay is offset,
+  the contract values are in `art/build_ui.sh` + `Table.lua` (`544x292`, board at −28).
 
 - **Animation / visibility.** With `W.ART`/`W.ANIM` on, the table fades in and cards
   deal/flip in (they prime to alpha 0 and rely on the shared animator frame's OnUpdate

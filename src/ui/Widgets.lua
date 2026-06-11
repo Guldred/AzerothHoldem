@@ -52,13 +52,15 @@ function W.panel(parent, w, h, title, closable)
   local f = CreateFrame("Frame", nil, parent or UIParent)
   f:SetWidth(w or 120); f:SetHeight(h or 120)
   if f.SetBackdrop then
+    local cloth = W.artOK(W.ART.panelbg)
     f:SetBackdrop({
-      bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+      bgFile = cloth and W.ART.panelbg or "Interface\\Tooltips\\UI-Tooltip-Background",
       edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-      tile = true, tileSize = 16, edgeSize = 16,
+      tile = true, tileSize = cloth and 256 or 16, edgeSize = 16,
       insets = { left = 4, right = 4, top = 4, bottom = 4 },
     })
-    f:SetBackdropColor(c4(W.COL.panel))
+    -- the cloth texture carries its own tone; only tint the plain fallback dark
+    if cloth then f:SetBackdropColor(1, 1, 1, 0.97) else f:SetBackdropColor(c4(W.COL.panel)) end
     f:SetBackdropBorderColor(c4(W.COL.gold, 0.6))
   end
   if f.SetFrameStrata then f:SetFrameStrata("MEDIUM") end
@@ -81,6 +83,13 @@ function W.button(parent, text, onClick)
   local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
   b:SetWidth(78); b:SetHeight(22); b:SetText(text or "")
   b:SetScript("OnClick", onClick)
+  -- casino skin: replace the template's stock textures with the gold-trimmed set
+  -- (template behavior — text, click handling, enable/disable — is unchanged)
+  if W.artOK(W.ART.btn) then
+    b:SetNormalTexture(W.ART.btn)
+    b:SetHighlightTexture(W.ART.btnHover, "BLEND")
+    b:SetPushedTexture(W.ART.btnPush)
+  end
   return b
 end
 
@@ -119,9 +128,16 @@ end
 local ART = "Interface\\AddOns\\AzerothHoldem\\art\\"
 W.ART = {
   cards  = ART .. "cards.tga",   -- 1024x1024 atlas: 13 cols (rank) x 4 rows (suit) + back
-  felt   = ART .. "felt.tga",    -- 512x512 green felt
+  felt   = ART .. "felt.tga",    -- 512x512 green felt (fallback fill behind the table art)
   chips  = ART .. "chips.tga",   -- 128x128 chip stack (pot)
   dealer = ART .. "dealer.tga",  -- 64x64 dealer button
+  table  = ART .. "table.tga",   -- 1024x512 stadium poker table (wood rail + felt + inlay)
+  btn       = ART .. "btn.tga",        -- 128x32 button states (casino leather + gold trim)
+  btnHover  = ART .. "btn_hover.tga",
+  btnPush   = ART .. "btn_push.tga",
+  plate  = ART .. "plate.tga",   -- 128x64 seat nameplate
+  glow   = ART .. "glow.tga",    -- 128x64 active-turn halo (pulsed behind the plate)
+  panelbg = ART .. "panelbg.tga",-- 256x256 dark cloth for panel backdrops
   -- card-atlas cell geometry — MUST stay in sync with art/build_cards.sh.
   cell = { w = 78, h = 114, atlas = 1024 },
   -- master switch for ALL art (cards, felt, chips, dealer): set false to force every
