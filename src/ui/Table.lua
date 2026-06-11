@@ -15,16 +15,17 @@ local function makeSeatBox(parent)
   local b = CreateFrame("Frame", nil, parent)
   b:SetWidth(104); b:SetHeight(42)
   b.glow = b:CreateTexture(nil, "BACKGROUND")
-  if W.artOK(W.ART.glow) then                      -- soft gold halo, pulsed when active
+  if W.artOK(W.ART.plates) then                    -- soft gold halo, pulsed when active
     b.glow:SetPoint("TOPLEFT", -8, 8); b.glow:SetPoint("BOTTOMRIGHT", 8, -8)
-    b.glow:SetTexture(W.ART.glow)
+    b.glow:SetTexture(W.ART.plates); b.glow:SetTexCoord(0, 1, 0.5, 1)
   else
     b.glow:SetPoint("TOPLEFT", -3, 3); b.glow:SetPoint("BOTTOMRIGHT", 3, -3)
     b.glow:SetTexture(rgba(COL.turn))
   end
   b.glow:Hide()
   b.bg = b:CreateTexture(nil, "BORDER"); b.bg:SetAllPoints(b)
-  if W.artOK(W.ART.plate) then b.bg:SetTexture(W.ART.plate)   -- rounded seat plate
+  if W.artOK(W.ART.plates) then                    -- rounded seat plate (atlas top half)
+    b.bg:SetTexture(W.ART.plates); b.bg:SetTexCoord(0, 1, 0, 0.5)
   else b.bg:SetTexture(0, 0, 0, 0.6) end
   -- class icon (resolved best-effort from your party/raid or the guild roster)
   b.icon = b:CreateTexture(nil, "ARTWORK")
@@ -40,6 +41,13 @@ local function makeSeatBox(parent)
   b.dealerTex:SetWidth(18); b.dealerTex:SetHeight(18); b.dealerTex:SetPoint("TOPRIGHT", -2, -1)
   if W.artOK(W.ART.dealer) then b.dealerTex:SetTexture(W.ART.dealer) end
   b.dealerTex:Hide()
+  -- showdown: the seat's revealed hole cards, shown under the plate at hand end
+  b.sd = {}
+  for i = 1, 2 do
+    b.sd[i] = W.card(b, 26, 36)
+    b.sd[i]:SetPoint("TOP", b, "BOTTOM", (i == 1) and -15 or 15, 2)
+    b.sd[i]:Hide()
+  end
   b:Hide()
   return b
 end
@@ -57,6 +65,7 @@ local function build()
   if W.artOK(W.ART.table) then
     frame.felt:SetPoint("TOPLEFT", 8, -24); frame.felt:SetPoint("BOTTOMRIGHT", -8, 114)
     frame.felt:SetTexture(W.ART.table)
+    frame.felt:SetTexCoord(0, 1, 0, 0.5)            -- the art lives in the atlas top half
   else
     frame.felt:SetPoint("TOPLEFT", 16, -28); frame.felt:SetPoint("BOTTOMRIGHT", -16, 120)
     if W.artOK(W.ART.felt) then frame.felt:SetTexture(W.ART.felt)  -- flat felt
@@ -102,6 +111,11 @@ local function build()
   end
   frame.handName = W.label(frame, "", "GameFontNormal"); frame.handName:SetPoint("BOTTOM", frame, "BOTTOM", 0, 64)
   frame.handName:SetTextColor(rgba(COL.gold))
+
+  -- end-of-hand result, across the felt center ("Thrall wins +240 — Full House")
+  frame.winText = W.label(frame, "", "GameFontNormalLarge")
+  frame.winText:SetPoint("CENTER", frame.felt, "CENTER", 0, -4)
+  frame.winText:SetTextColor(rgba(COL.gold))
 
   frame.status = W.label(frame, "", "GameFontDisableSmall"); frame.status:SetPoint("BOTTOMRIGHT", -12, 56)
 
@@ -167,13 +181,36 @@ local function refresh(v)
     end
   end
   frame.handName:SetText(v.handName or "")
+
+  -- end-of-hand: name the winner(s) + what they won (and their combo at showdown)
+  local winners
+  if v.deltas then
+    for seat, dlt in pairs(v.deltas) do
+      if dlt > 0 then winners = winners or {}; winners[#winners + 1] = { seat = seat, amt = dlt } end
+    end
+    if winners then table.sort(winners, function(a, b) return a.amt > b.amt end) end
+  end
+  local winLine
+  if winners and #winners == 1 then
+    local wn = winners[1]
+    local combo = v.showdown and v.showdown[wn.seat] and v.showdown[wn.seat].handName
+    winLine = wn.seat .. " wins +" .. W.commas(wn.amt) .. (combo and ("  —  " .. combo) or "")
+  elseif winners then
+    local parts = {}
+    for i = 1, #winners do parts[i] = winners[i].seat .. " +" .. W.commas(winners[i].amt) end
+    winLine = "Split pot:  " .. table.concat(parts, ",  ")
+  end
+  frame._winLine = winLine
+  frame.winText:SetText(winLine and ("|cffffd95c" .. winLine .. "|r") or "")
+
   local STREET = { [0] = "pre-flop", [1] = "flop", [2] = "turn", [3] = "river" }
   local statusText
   if v.aborted then statusText = "|cffff4444HALTED|r"
+  elseif winLine then statusText = "Hand complete — next deal in a moment…"
   elseif v.myTurn then statusText = "|cffffd95cYour turn!|r"
   elseif v.toAct then statusText = "Waiting for " .. tostring(v.toAct) .. "…"
   else statusText = "" end
-  if STREET[v.street] then statusText = statusText .. "  (" .. STREET[v.street] .. ")" end
+  if not winLine and STREET[v.street] then statusText = statusText .. "  (" .. STREET[v.street] .. ")" end
   frame.status:SetText(statusText)
 
   -- seats around the oval, rotated so "me" sits at the bottom
@@ -211,6 +248,13 @@ local function refresh(v)
         if box.dealerTex and W.artOK(W.ART.dealer) then box.dealerTex:Show(); box.dealer:Hide()
         else box.dealer:Show() end
       else box.dealer:Hide(); if box.dealerTex then box.dealerTex:Hide() end end
+      -- showdown: everyone's revealed cards under their plate (yours are already big)
+      local sd = v.showdown and v.showdown[s.id]
+      if sd and sd.cards and s.id ~= v.me then
+        box.sd[1]:setCard(sd.cards[1]); box.sd[2]:setCard(sd.cards[2])
+      else
+        box.sd[1]:Hide(); box.sd[2]:Hide()
+      end
       if s.id == v.toAct and not s.folded then box.glow:Show(); frame.activeGlow = box.glow else box.glow:Hide() end
       box:Show()
     else

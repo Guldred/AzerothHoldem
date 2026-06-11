@@ -12,11 +12,14 @@ the `.toc`.
 | `felt.tga`   | 512×512   | Green felt (fallback) | Generated here with ImageMagick — **CC0**. |
 | `chips.tga`  | 128×128   | Chip stack (the pot)  | Generated here with ImageMagick — **CC0**. |
 | `dealer.tga` | 64×64     | Dealer button         | Generated here with ImageMagick — **CC0**. |
-| `table.tga`  | 1024×512  | Stadium poker table (wood rail, felt, board inlay, stencil) | Generated here with ImageMagick — **CC0**. |
-| `btn.tga` / `btn_hover.tga` / `btn_push.tga` | 128×32 | Button states (casino leather + gold trim) | Generated here with ImageMagick — **CC0**. |
-| `plate.tga`  | 128×64    | Seat nameplate        | Generated here with ImageMagick — **CC0**. |
-| `glow.tga`   | 128×64    | Active-turn halo      | Generated here with ImageMagick — **CC0**. |
+| `table.tga`  | 1024×1024 | Stadium poker table in the TOP HALF (v 0–0.5): wood rail, felt, board inlay, stencil | Generated here with ImageMagick — **CC0**. |
+| `btns.tga`   | 128×128   | Button states in 32px rows: normal / hover (additive) / pushed / disabled | Generated here with ImageMagick — **CC0**. |
+| `plates.tga` | 128×128   | Seat nameplate (top half) + active-turn halo (bottom half) | Generated here with ImageMagick — **CC0**. |
 | `panelbg.tga`| 256×256   | Panel cloth backdrop  | Generated here with ImageMagick — **CC0**. |
+
+> **Square-texture rule (learned in-client):** WoW 3.3.5a rendered our non-square TGAs
+> (1024×512, 128×32, 128×64) as black. Every texture must be **square** pow2; rectangular
+> content lives in atlas regions addressed via `SetTexCoord`.
 
 ## Card faces — Byron Knoll "Vector Playing Cards" (public domain)
 

@@ -116,7 +116,7 @@ function Client:onMessage(sender, payload, channel)
     self.pendingHole, self.pendingReveals, self.pendingBetTurn, self.resumed = nil, {}, nil, false
     self.hole, self.holeVerified, self.board, self.boardVerified = nil, false, {}, true
     self.auditPassed, self.deltas, self.folded = false, nil, {}
-    self.toActSeat, self.prompt, self.lastActed = nil, nil, nil
+    self.toActSeat, self.prompt, self.lastActed, self.showdown = nil, nil, nil, nil
     self.handNo = d.handNo
     self.seats = d.seats
     self.order = canonical(d.seats)
@@ -180,6 +180,23 @@ function Client:onMessage(sender, payload, channel)
   elseif op == OP.ACTED then
     if d.action == CC.ACTION.FOLD then self.folded[d.seat] = true end
     self.lastActed = d
+
+  elseif op == OP.SHOWDOWN then
+    -- a seat's hole cards opened at showdown: verify them against the same deck
+    -- commitments as every other card before trusting what the host claims
+    if self.deckCommits then
+      for i = 1, #d.reveals do
+        local rv = d.reveals[i]
+        if not Verify.card(self.deckCommits[rv.pos + 1], rv.val, rv.pos, rv.nonce) then
+          return self:_abort(Verify.CODE.COMMIT,
+            "showdown card at pos " .. rv.pos .. " does not open its commitment")
+        end
+      end
+    end
+    local cards = {}
+    for i = 1, #d.reveals do cards[i] = d.reveals[i].val end
+    self.showdown = self.showdown or {}
+    self.showdown[d.seat] = { cards = cards, handName = d.handName ~= "" and d.handName or nil }
 
   elseif op == OP.HANDEND then
     self.deltas = d.deltas

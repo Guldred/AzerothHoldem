@@ -84,11 +84,19 @@ function W.button(parent, text, onClick)
   b:SetWidth(78); b:SetHeight(22); b:SetText(text or "")
   b:SetScript("OnClick", onClick)
   -- casino skin: replace the template's stock textures with the gold-trimmed set
-  -- (template behavior — text, click handling, enable/disable — is unchanged)
-  if W.artOK(W.ART.btn) then
-    b:SetNormalTexture(W.ART.btn)
-    b:SetHighlightTexture(W.ART.btnHover, "BLEND")
-    b:SetPushedTexture(W.ART.btnPush)
+  -- (template behavior — text, click handling, enable/disable — is unchanged).
+  -- The hover row is ADDITIVE: WoW draws highlights ABOVE the button text, so an
+  -- opaque hover would blank the label; an ADD overlay only brightens it.
+  if W.artOK(W.ART.btns) then
+    local function state(setter, getter, v0, v1, blend)
+      if blend then b[setter](b, W.ART.btns, blend) else b[setter](b, W.ART.btns) end
+      local t = b[getter] and b[getter](b)
+      if t and t.SetTexCoord then t:SetTexCoord(0, 1, v0, v1) end
+    end
+    state("SetNormalTexture",   "GetNormalTexture",   0,    0.25)
+    state("SetHighlightTexture","GetHighlightTexture",0.25, 0.5, "ADD")
+    state("SetPushedTexture",   "GetPushedTexture",   0.5,  0.75)
+    state("SetDisabledTexture", "GetDisabledTexture", 0.75, 1)
   end
   return b
 end
@@ -131,12 +139,11 @@ W.ART = {
   felt   = ART .. "felt.tga",    -- 512x512 green felt (fallback fill behind the table art)
   chips  = ART .. "chips.tga",   -- 128x128 chip stack (pot)
   dealer = ART .. "dealer.tga",  -- 64x64 dealer button
-  table  = ART .. "table.tga",   -- 1024x512 stadium poker table (wood rail + felt + inlay)
-  btn       = ART .. "btn.tga",        -- 128x32 button states (casino leather + gold trim)
-  btnHover  = ART .. "btn_hover.tga",
-  btnPush   = ART .. "btn_push.tga",
-  plate  = ART .. "plate.tga",   -- 128x64 seat nameplate
-  glow   = ART .. "glow.tga",    -- 128x64 active-turn halo (pulsed behind the plate)
+  -- NOTE: all UI textures are SQUARE — in-client testing showed 3.3.5a renders
+  -- non-square TGAs black. Content lives in atlas regions addressed by texcoords.
+  table  = ART .. "table.tga",   -- 1024x1024; the stadium table is the TOP HALF (v 0..0.5)
+  btns   = ART .. "btns.tga",    -- 128x128; 32px rows: normal/hover(ADD)/pushed/disabled
+  plates = ART .. "plates.tga",  -- 128x128; seat plate top half, active-glow halo bottom half
   panelbg = ART .. "panelbg.tga",-- 256x256 dark cloth for panel backdrops
   -- card-atlas cell geometry — MUST stay in sync with art/build_cards.sh.
   cell = { w = 78, h = 114, atlas = 1024 },
@@ -351,8 +358,10 @@ function W.card(parent, w, h)
         self.face:SetTexCoord(0, 1, 0, 1); self.face:SetTexture(0.13, 0.20, 0.52, 1); hideText(self)
       end
     else                                                                 -- "empty"
-      self.face:SetTexCoord(0, 1, 0, 1); self.face:SetTexture(0, 0, 0, 0.35); hideText(self)
+      -- a faint slot marker, not a black box (it sits on the felt's board inlay)
+      self.face:SetTexCoord(0, 1, 0, 1); self.face:SetTexture(0, 0, 0, 0.14); hideText(self)
     end
+    if self.border.SetAlpha then self.border:SetAlpha(key == "empty" and 0.25 or 1) end
   end
 
   -- cancel any running tween and return to the resting transform (incl. the slide point,
@@ -451,6 +460,7 @@ function ns.UI.viewOf(s)
     v.board = s.dealer:boardCards(bc)
     local hr = s.dealer:holeReveal(s.me)
     for i = 1, #hr do v.hole[i] = hr[i].val end
+    v.deltas, v.showdown = s.deltas, s.showdown    -- end-of-hand result (phase "done")
     v.myTurn = (r.toAct == s.me)
     if v.myTurn and s.legalForMe then
       local la = s:legalForMe()
@@ -483,7 +493,7 @@ function ns.UI.viewOf(s)
       v.canRaise = (v.toCall > 0); v.minRaise, v.maxRaise = p.minTo, p.maxTo
     end
     v.refused = s.lastRefuse              -- why the host rejected our last action (if it did)
-    v.deltas = s.deltas
+    v.deltas, v.showdown = s.deltas, s.showdown
   end
   -- best-hand name once we can make 5 (nice "Pair of Kings" readout)
   if #v.hole >= 2 and (#v.hole + #v.board) >= 5 and ns.HandEval then

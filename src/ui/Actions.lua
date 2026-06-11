@@ -36,16 +36,12 @@ local function amountVal()
 end
 
 local function build()
-  -- live inside the table window's control strip; fall back to a floating panel
-  -- only if the strip is unavailable (keeps the file order-independent)
+  -- the controls live inside the table window's control strip — never as a
+  -- floating window (one window during play; a stray panel confused players)
   local host = ns.UI.controlStrip
-  if host then
-    bar = CreateFrame("Frame", nil, host)
-    bar:SetAllPoints(host)
-  else
-    bar = W.panel(UIParent, 430, 96)
-    bar:SetPoint("BOTTOM", 0, 150)
-  end
+  if not host then return end                       -- Table.lua builds the strip first (.toc order)
+  bar = CreateFrame("Frame", nil, host)
+  bar:SetAllPoints(host)
 
   bar.fold = W.button(bar, "Fold", function() act(A.FOLD) end)
   bar.fold:SetWidth(64); bar.fold:SetHeight(24); bar.fold:SetPoint("BOTTOMLEFT", 6, 10)
@@ -133,6 +129,6 @@ local function refresh(v)
 end
 
 build()
-setActive(false)
+if bar then setActive(false) end
 ns.UI.register(refresh)
 return ns.UI.actionBar

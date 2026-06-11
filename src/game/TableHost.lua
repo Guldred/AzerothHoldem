@@ -109,7 +109,9 @@ end
 
 -- ---- the hand loop ---------------------------------------------------------
 function TableHost:startHand()
-  if self.host then return false, "hand in progress" end
+  -- a DONE host is kept around so the table keeps showing the result (winner,
+  -- showdown cards) through the rest period; it doesn't block the next hand
+  if self.host and self.host.phase ~= Host.PHASE.DONE then return false, "hand in progress" end
   for p in pairs(self.pendingLeave) do self:_unseat(p) end; self.pendingLeave = {}
   for p in pairs(self.pendingSeat) do self:_seat(p) end; self.pendingSeat = {}
   for i = #self.order, 1, -1 do                            -- bust out anyone at 0 chips
@@ -148,7 +150,9 @@ function TableHost:_onHandComplete(h)
   self.ledger:applyHandResult(deltas)                      -- carry stacks to next hand
   self.completedHands = (self.completedHands or 0) + 1
   self.buttonIdx = self.buttonIdx + 1                      -- rotate the button
-  self.host = nil
+  -- keep self.host (phase DONE, fully inert) so the host's table window keeps
+  -- showing the finished hand through the rest period instead of vanishing;
+  -- startHand replaces it. Inbound routing for the dead hand is cleared though.
   self.cfg.registerHost(self.id, nil)
   self.restTicks = self.restDelay
   self:_broadcastSeats()
@@ -181,7 +185,10 @@ function TableHost:tick(dt)
   if self.host then self.host:tick() end            -- drive the live hand's deadlines/timeouts
   if self.open and self.ticks % self.adInterval == 0 then self:advertise() end
   if self.restTicks > 0 then self.restTicks = self.restTicks - 1 end
-  if self.open and not self.host and self.restTicks == 0 and #self.order >= 2 then self:startHand() end
+  if self.open and (not self.host or self.host.phase == Host.PHASE.DONE)
+      and self.restTicks == 0 and #self.order >= 2 then
+    self:startHand()
+  end
 end
 
 ns.TableHost = TableHost

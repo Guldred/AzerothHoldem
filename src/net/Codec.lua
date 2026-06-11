@@ -96,6 +96,10 @@ end
 ENC[OP.CHEAT] = function(d)
   return Protocol.encode(OP.CHEAT, { d.handNo, d.code, d.detail or "" })
 end
+-- showdown: a seat's hole cards opened (commitment-verifiable) + its hand name
+ENC[OP.SHOWDOWN] = function(d)
+  return Protocol.encode(OP.SHOWDOWN, { d.handNo, d.seat, revealPairs(d.reveals), d.handName or "" })
+end
 -- ---- lobby / seating (multi-table casino; ride at routing tag "0") ----------
 ENC[OP.TABLE] = function(d)
   return Protocol.encode(OP.TABLE, { d.tableId, d.name or "", d.sb, d.bb, d.variant or "texas",
@@ -195,6 +199,9 @@ DEC[OP.ENDREVEAL] = function(f)
 end
 DEC[OP.CHEAT] = function(f)
   return { handNo = tn(leaf(f[1])), code = leaf(f[2]), detail = leaf(f[3]) }
+end
+DEC[OP.SHOWDOWN] = function(f)
+  return { handNo = tn(leaf(f[1])), seat = leaf(f[2]), reveals = parseReveals(f[3]), handName = leaf(f[4]) }
 end
 DEC[OP.TABLE] = function(f)
   return { tableId = leaf(f[1]), name = leaf(f[2]), sb = tn(leaf(f[3])), bb = tn(leaf(f[4])),

@@ -282,13 +282,35 @@ end
 function Host:_finishHand()
   if self.phase == PHASE.DONE then return end
   self:_syncBoard()                                 -- reveal any remaining board (all-in runout)
-  local awards = self.dealer:settle()               -- settles via Rules/Pot; applies to stacks
+  local awards, board, holeBySeat = self.dealer:settle()   -- settles via Rules/Pot
   self.awards = awards
   local deltas = {}
   for i = 1, #self.seats do
     local seat = self.seats[i]
     deltas[seat] = self.dealer.rules.seats[seat].stack - self.cfg.stacks[seat]
   end
+  self.deltas = deltas                              -- kept for the end-of-hand view
+
+  -- showdown: open every unfolded player's hole cards (commitment-verifiable) with
+  -- their hand name. Never on a fold-win — in poker an uncalled hand isn't shown.
+  self.showdown = nil
+  local unfolded = 0
+  for _ in pairs(holeBySeat) do unfolded = unfolded + 1 end
+  if unfolded >= 2 then
+    self.showdown = {}
+    for seat, hole in pairs(holeBySeat) do
+      local all = { hole[1], hole[2], board[1], board[2], board[3], board[4], board[5] }
+      local name
+      local ok, score = pcall(ns.HandEval.evaluate, all)
+      if ok then local ok2, n = pcall(ns.HandEval.describe, score); if ok2 then name = n end end
+      self.showdown[seat] = { cards = { hole[1], hole[2] }, handName = name }
+      self:_bcast(OP.SHOWDOWN, {
+        handNo = self.handNo, seat = seat,
+        reveals = self.dealer:holeReveal(seat), handName = name or "",
+      })
+    end
+  end
+
   self:_bcast(OP.HANDEND, { handNo = self.handNo, deltas = deltas })
   self:_bcast(OP.ENDREVEAL, {
     handNo = self.handNo, S = self.S, seedReveals = self.reveals,

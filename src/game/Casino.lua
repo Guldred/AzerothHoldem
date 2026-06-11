@@ -143,11 +143,16 @@ function Casino:changeTable(tableId) self:leave(); self:join(tableId) end
 
 -- the host closes their table: no more ads/joins/hands. If a hand is live it
 -- finishes first; the table then disbands (all seats released) on a later tick.
+local function handLive(th)
+  local h = th and th.host
+  return h and h.phase ~= "done" and h.phase ~= "abort"
+end
+
 function Casino:closeTable()
   local th = self.tableHost
   if not th then return false, "not hosting a table" end
   th:close()
-  if th.host then self._closing = true
+  if handLive(th) then self._closing = true
   else th:disband(); self.tableHost = nil end
   return true
 end
@@ -164,7 +169,7 @@ function Casino:tick(dt)
   self._ticks = (self._ticks or 0) + (dt or 1)
   self.lobby:tick(dt)
   if self.tableHost then self.tableHost:tick(dt) end
-  if self._closing and self.tableHost and not self.tableHost.host then
+  if self._closing and self.tableHost and not handLive(self.tableHost) then
     self.tableHost:disband(); self.tableHost = nil; self._closing = nil
   end
 end
