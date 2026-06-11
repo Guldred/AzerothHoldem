@@ -68,11 +68,21 @@ ENC[OP.REVEAL] = function(d)
   return Protocol.encode(OP.REVEAL, { d.handNo, d.street, revealPairs(d.reveals) })
 end
 ENC[OP.BET_TURN] = function(d)
-  -- minTo/maxTo: the actor's full bet-or-raise-TO range (so a client can submit a
-  -- valid raise-to amount); canCheck saves the client guessing from toCall; pot is
-  -- the current total so every client can display it.
+  -- Carries the actor's exact legal actions (canCheck/canBet/canRaise + the
+  -- bet/raise-TO range) so the UI never has to GUESS rules from toCall — plus the
+  -- table's money state (pot, stacks, street bets) and the turn timeout, so every
+  -- client displays live chips and a countdown.
+  local stacks, bets = {}, {}
+  if d.seats then
+    for i = 1, #d.seats do
+      stacks[i] = (d.stacks and d.stacks[d.seats[i]]) or 0
+      bets[i] = (d.bets and d.bets[d.seats[i]]) or 0
+    end
+  end
   return Protocol.encode(OP.BET_TURN, { d.handNo, d.actionNo, d.seat, d.toCall, d.minRaise,
-    d.minTo or 0, d.maxTo or 0, d.canCheck and 1 or 0, d.pot or 0 })
+    d.minTo or 0, d.maxTo or 0, d.canCheck and 1 or 0, d.pot or 0,
+    d.canBet and 1 or 0, d.canRaise and 1 or 0, d.timeout or 0,
+    { list = stacks }, { list = bets } })
 end
 ENC[OP.REFUSE] = function(d)
   return Protocol.encode(OP.REFUSE, { d.handNo, d.actionNo or 0, d.reason or "" })
@@ -172,6 +182,11 @@ DEC[OP.BET_TURN] = function(f)
   if f[7] then local v = tn(leaf(f[7])); if v and v > 0 then d.maxTo = v end end
   if f[8] then d.canCheck = leaf(f[8]) == "1" end
   if f[9] then d.pot = tn(leaf(f[9])) end
+  if f[10] then d.canBet = leaf(f[10]) == "1" end
+  if f[11] then d.canRaise = leaf(f[11]) == "1" end
+  if f[12] then local v = tn(leaf(f[12])); if v and v > 0 then d.timeout = v end end
+  if f[13] then local raw = list(f[13]); d.stacks = {}; for i = 1, #raw do d.stacks[i] = tn(raw[i]) end end
+  if f[14] then local raw = list(f[14]); d.bets = {}; for i = 1, #raw do d.bets[i] = tn(raw[i]) end end
   return d
 end
 DEC[OP.REFUSE] = function(f)

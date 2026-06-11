@@ -163,13 +163,23 @@ function Client:onMessage(sender, payload, channel)
   elseif op == OP.BET_TURN then
     self.toActSeat = d.seat                      -- public: whose turn it is (for the UI)
     if d.pot then self.pot = d.pot end           -- current pot total (for the UI)
+    if d.timeout then self.turnTimeout = d.timeout end
+    if d.stacks and self.seats then              -- live chips + street bets, every turn
+      self.stacks, self.bets = self.stacks or {}, {}
+      for i = 1, #self.seats do
+        if d.stacks[i] then self.stacks[self.seats[i]] = d.stacks[i] end
+        self.bets[self.seats[i]] = d.bets and d.bets[i] or 0
+      end
+    end
     if d.seat == self.me and self.phase == PHASE.DEAL then
       if self.human then
-        -- minTo/maxTo: the legal bet/raise-TO range from the host (raise amounts are
-        -- raise-TO totals). A re-sent BET_TURN after a refused intent lands here too,
-        -- restoring the prompt so the player can try again.
+        -- the host's EXACT legal actions (canCheck/canBet/canRaise + the bet/raise-TO
+        -- range) — the UI must never guess rules from toCall (a big blind facing
+        -- callers has toCall=0 but must RAISE, not BET). A re-sent BET_TURN after a
+        -- refused intent lands here too, restoring the prompt.
         self.prompt = { toCall = d.toCall, minRaise = d.minRaise, actionNo = d.actionNo,
-                        minTo = d.minTo, maxTo = d.maxTo, canCheck = d.canCheck }
+                        minTo = d.minTo, maxTo = d.maxTo,
+                        canCheck = d.canCheck, canBet = d.canBet, canRaise = d.canRaise }
       else
         self:_act(d.toCall, d.minRaise, d.actionNo)
       end

@@ -194,11 +194,19 @@ function Host:_betTurnPayload(seat, la)
   if la.canRaise then minTo, maxTo = la.minRaiseTo, la.maxRaiseTo
   elseif la.canBet then minTo, maxTo = la.minBetTo, la.maxBetTo end
   local rules, pot = self.dealer.rules, 0
-  for i = 1, #self.seats do pot = pot + rules.seats[self.seats[i]].total end
+  local stacks, bets = {}, {}
+  for i = 1, #self.seats do
+    local p = rules.seats[self.seats[i]]
+    pot = pot + p.total
+    stacks[self.seats[i]] = p.stack
+    bets[self.seats[i]] = p.committed
+  end
   return {
     handNo = self.handNo, actionNo = self.actionNo, seat = seat,
     toCall = la.toCall or 0, minRaise = rules.minRaiseSize,
     minTo = minTo, maxTo = maxTo, canCheck = la.canCheck, pot = pot,
+    canBet = la.canBet, canRaise = la.canRaise, timeout = self.turnTimeout,
+    seats = self.seats, stacks = stacks, bets = bets,
   }
 end
 

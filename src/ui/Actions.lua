@@ -101,22 +101,35 @@ local function refresh(v)
   end
 
   if not (v and v.myTurn and not v.aborted) then setActive(false); bar._lastTurn = false; return end
+
+  -- the host's EXACT legal actions decide everything — never inferred from toCall
+  -- (a big blind facing callers has toCall=0 but must RAISE, not BET)
+  local canAggro = v.canBet or v.canRaise
+
+  -- check is the ONLY meaningful action (e.g. all-in runouts): act for the player
+  -- instead of making them click a button with no alternative
+  if v.canCheck and not canAggro and not bar._lastTurn then
+    bar._lastTurn = true
+    if ns.Log then ns.Log.info("Checked automatically — no other action was possible.") end
+    act(A.CHECK)
+    return
+  end
+
   setActive(true)
-  local opener = (v.toCall or 0) == 0
-  bar._opener = opener
-  bar._min = opener and v.minBet or v.minRaise
-  bar._max = opener and v.maxBet or v.maxRaise
+  bar._opener = v.canBet                       -- send BET vs RAISE per the host's flags
+  bar._min = v.canBet and v.minBet or v.minRaise
+  bar._max = v.canBet and v.maxBet or v.maxRaise
   bar._pot = v.pot
 
   if v.canCheck then bar.check:Show(); bar.call:Hide()
   else bar.check:Hide(); bar.call:Show(); bar.call:SetText("Call " .. W.commas(v.toCall or 0)) end
-  -- no legal bet/raise range (e.g. facing an all-in): grey the raise controls
-  if bar._min then
+  -- no legal bet/raise (or unknown range): grey the aggressive controls
+  if canAggro and bar._min then
     if bar.raise.Enable then bar.raise:Enable() end
   else
     if bar.raise.Disable then bar.raise:Disable() end
   end
-  bar.raise:SetText(opener and "Bet" or "Raise to")
+  bar.raise:SetText(v.canBet and "Bet" or "Raise to")
 
   -- quick-fills only make sense with a known value
   if not bar._min and bar.qMin.Disable then bar.qMin:Disable() end

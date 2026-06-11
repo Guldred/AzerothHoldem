@@ -463,6 +463,9 @@ function ns.UI.viewOf(s)
     local hr = s.dealer:holeReveal(s.me)
     for i = 1, #hr do v.hole[i] = hr[i].val end
     v.deltas, v.showdown = s.deltas, s.showdown    -- end-of-hand result (phase "done")
+    if r.toAct and not r.complete then             -- live countdown (host has exact ticks)
+      v.turnLeft = math.max(0, (s.turnTimeout or 0) - (s.turnTicks or 0))
+    end
     v.myTurn = (r.toAct == s.me)
     if v.myTurn and s.legalForMe then
       local la = s:legalForMe()
@@ -475,12 +478,14 @@ function ns.UI.viewOf(s)
   else
     v.toAct = s.toActSeat
     v.pot = s.pot or 0                    -- live pot total (from BET_TURN / SNAPSHOT)
+    v.turnTimeout = s.turnTimeout         -- countdown base (UI tracks elapsed locally)
     if s.seats then
       v.seats = {}
       for i = 1, #s.seats do
         local id = s.seats[i]
         v.seats[i] = { id = id, folded = s.folded and s.folded[id] or false,
-                       stack = s.stacks and s.stacks[id] }   -- chip counts (HANDSTART/HANDEND)
+                       stack = s.stacks and s.stacks[id],    -- live (refreshed every turn)
+                       bet = s.bets and s.bets[id] }         -- current street commitment
       end
     end
     if s.board then for i = 1, #s.board do v.board[i] = s.board[i].val end end
@@ -492,10 +497,15 @@ function ns.UI.viewOf(s)
       local p = s.prompt
       v.toCall = p.toCall
       v.canCheck = (p.canCheck ~= nil) and p.canCheck or (v.toCall == 0)
-      -- minTo/maxTo from the host are bet/raise-TO totals (matching what the Rules
-      -- engine validates); older hosts only sent the raise increment — fall back.
-      v.canBet = (v.toCall == 0); v.minBet, v.maxBet = p.minTo or p.minRaise, p.maxTo
-      v.canRaise = (v.toCall > 0); v.minRaise, v.maxRaise = p.minTo, p.maxTo
+      -- the host's EXACT flags (a BB facing callers has toCall=0 but must RAISE,
+      -- not BET); fall back to the old toCall inference only for pre-flag hosts
+      if p.canBet ~= nil or p.canRaise ~= nil then
+        v.canBet, v.canRaise = p.canBet or false, p.canRaise or false
+      else
+        v.canBet, v.canRaise = (v.toCall == 0), (v.toCall > 0)
+      end
+      v.minBet, v.maxBet = p.minTo or p.minRaise, p.maxTo
+      v.minRaise, v.maxRaise = p.minTo, p.maxTo
     end
     v.refused = s.lastRefuse              -- why the host rejected our last action (if it did)
     v.deltas, v.showdown = s.deltas, s.showdown

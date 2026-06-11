@@ -224,12 +224,24 @@ local function refresh(v)
   frame._winLine = winLine
   frame.winText:SetText(winLine and ("|cffffd95c" .. winLine .. "|r") or "")
 
+  -- turn countdown: the host knows the exact ticks left; clients count down locally
+  -- from the announced timeout, restarting whenever the turn moves to a new seat
+  local secsLeft
+  if v.turnLeft then
+    secsLeft = v.turnLeft
+  elseif v.toAct and v.turnTimeout and type(GetTime) == "function" then
+    if frame._turnSeat ~= v.toAct then frame._turnSeat = v.toAct; frame._turnT0 = GetTime() end
+    secsLeft = math.max(0, floor(v.turnTimeout - (GetTime() - (frame._turnT0 or 0))))
+  end
+  if not v.toAct then frame._turnSeat = nil end
+  local clock = secsLeft and ("  |cff" .. (secsLeft <= 10 and "ff5555" or "aaaaaa") .. secsLeft .. "s|r") or ""
+
   local STREET = { [0] = "pre-flop", [1] = "flop", [2] = "turn", [3] = "river" }
   local statusText
   if v.aborted then statusText = "|cffff4444HALTED|r"
   elseif winLine then statusText = "Hand complete — next deal in a moment…"
-  elseif v.myTurn then statusText = "|cffffd95cYour turn!|r"
-  elseif v.toAct then statusText = "Waiting for " .. tostring(v.toAct) .. "…"
+  elseif v.myTurn then statusText = "|cffffd95cYour turn!|r" .. clock
+  elseif v.toAct then statusText = "Waiting for " .. tostring(v.toAct) .. "…" .. clock
   else statusText = "" end
   if not winLine and STREET[v.street] then statusText = statusText .. "  (" .. STREET[v.street] .. ")" end
   frame.status:SetText(statusText)
