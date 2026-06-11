@@ -1,59 +1,62 @@
---[[ TrustPanel.lua — the verification readout with ready-check style icons and a
-  prominent CHEAT banner. Green check = verified, yellow ? = pending, red X = failed. ]]
+--[[ TrustPanel.lua — the fair-play indicator, embedded in the table window (one
+  window during play): a small status icon + line at the bottom-left summarizing
+  the verification pipeline (seed sealed -> deck committed -> cards verified ->
+  end-of-hand audit), and a big red on-table banner the moment a cheat is detected.
+  The detailed per-check readout lives in the tooltip-free summary text. ]]
 
 local ADDON, ns = ...
 local W = ns.W
-local COL = W.COL
 local function rgba(t, a) return t[1], t[2], t[3], a or t[4] or 1 end
 
-local panel, rows
-
-local function row(parent, y, text)
-  local r = {}
-  r.icon = W.tex(parent, "ARTWORK", W.ICON.waiting)
-  r.icon:SetWidth(16); r.icon:SetHeight(16); r.icon:SetPoint("TOPLEFT", 14, y)
-  r.label = W.label(parent, text, "GameFontHighlightSmall", "LEFT")
-  r.label:SetPoint("LEFT", r.icon, "RIGHT", 8, 0)
-  return r
-end
-
-local function setIcon(r, state)
-  if state == true then r.icon:SetTexture(W.ICON.ready)
-  elseif state == "bad" then r.icon:SetTexture(W.ICON.notready)
-  else r.icon:SetTexture(W.ICON.waiting) end
-end
+local cluster, banner
 
 local function build()
-  panel = W.panel(UIParent, 226, 156, "Verification")
-  panel:SetPoint("TOPRIGHT", -16, -130)
-  rows = {
-    seed = row(panel, -30, "Joint seed sealed"),
-    deck = row(panel, -52, "Deck committed"),
-    hole = row(panel, -74, "Your cards verified"),
-    audit = row(panel, -96, "End-of-hand audit"),
-  }
-  panel.banner = W.label(panel, "", "GameFontNormalLarge"); panel.banner:SetPoint("BOTTOM", 0, 10)
-  panel:Hide()
-  ns.UI.trustPanel = panel
+  local host = ns.UI.tableFrame
+  if not host then return end                       -- table window is built first (.toc order)
+
+  cluster = CreateFrame("Frame", nil, host)
+  cluster:SetWidth(220); cluster:SetHeight(16)
+  cluster:SetPoint("BOTTOMLEFT", host, "BOTTOMLEFT", 12, 56)
+  cluster.icon = cluster:CreateTexture(nil, "ARTWORK")
+  cluster.icon:SetWidth(14); cluster.icon:SetHeight(14); cluster.icon:SetPoint("LEFT", 0, 0)
+  cluster.icon:SetTexture(W.ICON.waiting)
+  cluster.text = W.label(cluster, "", "GameFontDisableSmall", "LEFT")
+  cluster.text:SetPoint("LEFT", cluster.icon, "RIGHT", 4, 0)
+
+  -- the unmissable cheat banner, across the middle of the felt
+  banner = W.label(host, "", "GameFontNormalLarge")
+  banner:SetPoint("CENTER", host, "CENTER", 0, 40)
+  banner:SetText("")
+
+  ns.UI.trustPanel = cluster
+end
+
+local function setState(icon, text)
+  if not cluster then return end
+  cluster.icon:SetTexture(icon)
+  cluster.text:SetText(text)
 end
 
 local function refresh(v)
-  if not panel then return end
-  if not v then panel:Hide(); return end
-  panel:Show()
-  setIcon(rows.seed, v.sealed)
-  setIcon(rows.deck, v.sealed)
-  setIcon(rows.hole, v.aborted and "bad" or v.holeVerified)
-  setIcon(rows.audit, v.aborted and "bad" or v.auditPassed)
-  panel.banner:SetText(v.aborted and ("|cffff2222CHEAT: " .. (v.cheat and v.cheat.code or "?") .. "|r") or "")
+  if not cluster then return end
+  if not v then banner:SetText(""); return end
+  if v.aborted then
+    setState(W.ICON.notready, "fair play: FAILED")
+    banner:SetText("|cffff2222>>> CHEAT: " .. (v.cheat and v.cheat.code or "?") .. " <<<|r")
+    return
+  end
+  banner:SetText("")
+  if v.auditPassed then setState(W.ICON.ready, "fair play: hand verified")
+  elseif v.holeVerified then setState(W.ICON.ready, "fair play: cards verified")
+  elseif v.sealed then setState(W.ICON.waiting, "fair play: deck sealed, verifying…")
+  else setState(W.ICON.waiting, "fair play: preparing…") end
 end
 
 -- fired straight from the cheat callback (independent of the refresh loop)
 function ns.UI.showCheat(code, detail)
-  if not panel then return end
-  panel:Show()
-  panel.banner:SetText("|cffff2222>>> CHEAT: " .. tostring(code) .. " <<<|r")
-  if rows then setIcon(rows.hole, "bad"); setIcon(rows.audit, "bad") end
+  if not cluster then return end
+  setState(W.ICON.notready, "fair play: FAILED")
+  if banner then banner:SetText("|cffff2222>>> CHEAT: " .. tostring(code) .. " <<<|r") end
 end
 
 build()

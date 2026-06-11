@@ -13,7 +13,7 @@ local AX, AY = 215, 118   -- seat-oval radii
 
 local function makeSeatBox(parent)
   local b = CreateFrame("Frame", nil, parent)
-  b:SetWidth(96); b:SetHeight(42)
+  b:SetWidth(104); b:SetHeight(42)
   b.glow = b:CreateTexture(nil, "BACKGROUND")
   if W.artOK(W.ART.glow) then                      -- soft gold halo, pulsed when active
     b.glow:SetPoint("TOPLEFT", -8, 8); b.glow:SetPoint("BOTTOMRIGHT", 8, -8)
@@ -26,6 +26,11 @@ local function makeSeatBox(parent)
   b.bg = b:CreateTexture(nil, "BORDER"); b.bg:SetAllPoints(b)
   if W.artOK(W.ART.plate) then b.bg:SetTexture(W.ART.plate)   -- rounded seat plate
   else b.bg:SetTexture(0, 0, 0, 0.6) end
+  -- class icon (resolved best-effort from your party/raid or the guild roster)
+  b.icon = b:CreateTexture(nil, "ARTWORK")
+  b.icon:SetWidth(22); b.icon:SetHeight(22); b.icon:SetPoint("LEFT", 5, 0)
+  b.icon:SetTexture("Interface\\TargetingFrame\\UI-Classes-Circles")
+  b.icon:Hide()
   b.name = W.label(b, "", "GameFontNormalSmall"); b.name:SetPoint("TOP", 0, -3)
   b.stack = W.label(b, "", "GameFontHighlightSmall"); b.stack:SetPoint("TOP", b.name, "BOTTOM", 0, -1)
   b.bet = W.label(b, "", "GameFontNormalSmall"); b.bet:SetPoint("BOTTOM", 0, 2); b.bet:SetTextColor(rgba(COL.gold))
@@ -40,7 +45,9 @@ local function makeSeatBox(parent)
 end
 
 local function build()
-  frame = W.panel(UIParent, 560, 380, "Azeroth Hold'em")
+  -- one window during play: the felt up top + a control strip along the bottom
+  -- (the action bar embeds itself there — see Actions.lua / ns.UI.controlStrip)
+  frame = W.panel(UIParent, 560, 430, "Azeroth Hold'em")
   frame:SetPoint("CENTER")
 
   -- the table itself: a stadium poker table (wood rail + felt + board inlay).
@@ -48,13 +55,21 @@ local function build()
   -- drawn for this 544x292 mapping (see art/build_ui.sh) — move them together.
   frame.felt = frame:CreateTexture(nil, "BACKGROUND")
   if W.artOK(W.ART.table) then
-    frame.felt:SetPoint("TOPLEFT", 8, -24); frame.felt:SetPoint("BOTTOMRIGHT", -8, 64)
+    frame.felt:SetPoint("TOPLEFT", 8, -24); frame.felt:SetPoint("BOTTOMRIGHT", -8, 114)
     frame.felt:SetTexture(W.ART.table)
   else
-    frame.felt:SetPoint("TOPLEFT", 16, -28); frame.felt:SetPoint("BOTTOMRIGHT", -16, 70)
+    frame.felt:SetPoint("TOPLEFT", 16, -28); frame.felt:SetPoint("BOTTOMRIGHT", -16, 120)
     if W.artOK(W.ART.felt) then frame.felt:SetTexture(W.ART.felt)  -- flat felt
     else frame.felt:SetTexture(rgba(COL.felt)) end                 -- solid green
   end
+
+  -- the control strip the action bar lives in (subtle darker band)
+  frame.strip = CreateFrame("Frame", nil, frame)
+  frame.strip:SetPoint("BOTTOMLEFT", 8, 6); frame.strip:SetPoint("BOTTOMRIGHT", -8, 6)
+  frame.strip:SetHeight(44)
+  frame.stripBg = frame.strip:CreateTexture(nil, "BACKGROUND")
+  frame.stripBg:SetAllPoints(frame.strip); frame.stripBg:SetTexture(0, 0, 0, 0.30)
+  ns.UI.controlStrip = frame.strip
 
   -- pot (a chip stack if we have the art, else the built-in gold coin)
   frame.potChip = W.tex(frame, "ARTWORK")
@@ -76,21 +91,27 @@ local function build()
     frame.board[i] = cd
   end
 
-  -- your hole cards + hand name (bottom). flipReveal => dealt face-down, then turned up.
+  -- your hole cards + hand name (just above the control strip). flipReveal =>
+  -- dealt face-down, then turned up.
   frame.hole = {}
   for i = 1, 2 do
     local cd = W.card(frame, 46, 66)
-    cd:SetPoint("BOTTOM", frame, "BOTTOM", (i == 1) and -28 or 28, 30)
+    cd:SetPoint("BOTTOM", frame, "BOTTOM", (i == 1) and -28 or 28, 84)
     cd.flipReveal = true
     frame.hole[i] = cd
   end
-  frame.handName = W.label(frame, "", "GameFontNormal"); frame.handName:SetPoint("BOTTOM", frame, "BOTTOM", 0, 12)
+  frame.handName = W.label(frame, "", "GameFontNormal"); frame.handName:SetPoint("BOTTOM", frame, "BOTTOM", 0, 64)
   frame.handName:SetTextColor(rgba(COL.gold))
 
-  frame.status = W.label(frame, "", "GameFontDisableSmall"); frame.status:SetPoint("BOTTOMRIGHT", -10, 6)
+  frame.status = W.label(frame, "", "GameFontDisableSmall"); frame.status:SetPoint("BOTTOMRIGHT", -12, 56)
 
   seatBoxes = {}
   for i = 1, MAXSEATS do seatBoxes[i] = makeSeatBox(frame) end
+  -- your hole cards render ABOVE the bottom seat plate (it peeks out behind them)
+  local lvl = frame.GetFrameLevel and frame:GetFrameLevel()
+  if type(lvl) == "number" then
+    for i = 1, 2 do frame.hole[i]:SetFrameLevel(lvl + 5) end
+  end
 
   -- gentle pulse on the active seat's glow + a brief "swell" of the pot chip when it grows
   frame:SetScript("OnUpdate", function(self, e)
@@ -170,6 +191,18 @@ local function refresh(v)
       box:ClearAllPoints()
       box:SetPoint("CENTER", frame.felt, "CENTER", AX * cos(theta), AY * sin(theta))
       box.name:SetText(s.id == v.me and (s.id .. " (you)") or s.id)
+      -- class icon: best-effort lookup (party/raid, then guild roster); when the
+      -- class is unknown the plate simply renders without an icon
+      local tok = ns.classOf and ns.classOf(s.id)
+      local tc = tok and CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[tok]
+      box.name:ClearAllPoints()
+      if tc then
+        box.icon:SetTexCoord(tc[1], tc[2], tc[3], tc[4]); box.icon:Show()
+        box.name:SetPoint("TOPLEFT", 29, -4)
+      else
+        box.icon:Hide()
+        box.name:SetPoint("TOP", 0, -3)
+      end
       box.stack:SetText(s.stack and W.commas(s.stack) or "")
       box.bet:SetText((s.bet and s.bet > 0) and ("bet " .. W.commas(s.bet)) or "")
       box:SetAlpha(s.folded and 0.4 or 1.0)

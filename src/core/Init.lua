@@ -77,6 +77,40 @@ local function groupMembers()
 end
 
 -- ---------------------------------------------------------------------------
+-- player class lookup (for the seat-plate class icons) — best-effort and cheap:
+-- party/raid units first, then the guild roster, via a name->classToken map
+-- rebuilt at most every 10s. Unknown players simply get no icon.
+-- ---------------------------------------------------------------------------
+local classMap, classMapAt = {}, -1e9
+local function rebuildClassMap()
+  classMap = {}
+  if type(UnitName) == "function" and type(UnitClass) == "function" then
+    local function add(unit)
+      local n = UnitName(unit)
+      if n then local _, tok = UnitClass(unit); classMap[n] = tok end
+    end
+    add("player")
+    for i = 1, (type(GetNumRaidMembers) == "function" and GetNumRaidMembers() or 0) do add("raid" .. i) end
+    for i = 1, (type(GetNumPartyMembers) == "function" and GetNumPartyMembers() or 0) do add("party" .. i) end
+  end
+  if type(GetNumGuildMembers) == "function" and type(GetGuildRosterInfo) == "function" then
+    for i = 1, (GetNumGuildMembers() or 0) do
+      -- 3.3.5 returns: name, rank, rankIndex, level, class(localized), zone, note,
+      -- officernote, online, status, classFileName
+      local n, _, _, _, _, _, _, _, _, _, classFile = GetGuildRosterInfo(i)
+      if n and classFile and not classMap[n] then classMap[n] = classFile end
+    end
+  end
+end
+
+function ns.classOf(name)
+  if not name then return nil end
+  local now = (type(GetTime) == "function" and GetTime()) or 0
+  if now - classMapAt > 10 then classMapAt = now; rebuildClassMap() end
+  return classMap[name]
+end
+
+-- ---------------------------------------------------------------------------
 -- cheat banner
 -- ---------------------------------------------------------------------------
 local function onCheat(code, detail)
@@ -166,6 +200,7 @@ local function ensureCasino()
       adInterval = 60, lobbyTtl = 180, turnTimeout = 60, human = true,
     })
     ns.casino:announce()              -- ask hosts to re-advertise: instant table list
+    if type(GuildRoster) == "function" then GuildRoster() end   -- fresh class data for seat icons
     Log.info("Entered the casino floor on " .. casinoChannel() .. ".")
   end
   return ns.casino
