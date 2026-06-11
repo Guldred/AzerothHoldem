@@ -82,6 +82,7 @@ function TableHost:advertise(onDemand)
     variant = self.cfg.variant or "texas", taken = #self.order, seatMax = self.seatMax, open = self.open,
     players = self:_seatList(),                    -- who is seated (shown in the lobby)
     ver = self.cfg.version,                        -- exact-release gate for joiners
+    paused = self.paused,                          -- break status (shown to everyone)
   }), self.broadcast)
 end
 
@@ -201,12 +202,22 @@ function TableHost:startGame()
   return self:startHand()
 end
 
+-- break time: a live hand always finishes (freezing mid-decision would wreck
+-- timers); while paused no NEW hand is dealt. The state rides the table ad so
+-- every player and the lobby see the break immediately.
+function TableHost:setPaused(p)
+  self.paused = p and true or false
+  self:advertise()
+  return self.paused
+end
+
 function TableHost:tick(dt)
   self.ticks = self.ticks + (dt or 1)
   if self.host then self.host:tick() end            -- drive the live hand's deadlines/timeouts
   if self.open and self.ticks % self.adInterval == 0 then self:advertise() end
   if self.restTicks > 0 then self.restTicks = self.restTicks - 1 end
-  if self.open and self.started and (not self.host or self.host.phase == Host.PHASE.DONE)
+  if self.open and self.started and not self.paused
+      and (not self.host or self.host.phase == Host.PHASE.DONE)
       and self.restTicks == 0 and #self.order >= 2 then
     self:startHand()
   end

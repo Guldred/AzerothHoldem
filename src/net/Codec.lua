@@ -119,7 +119,8 @@ end
 -- ---- lobby / seating (multi-table casino; ride at routing tag "0") ----------
 ENC[OP.TABLE] = function(d)
   return Protocol.encode(OP.TABLE, { d.tableId, d.name or "", d.sb, d.bb, d.variant or "texas",
-    d.taken or 0, d.seatMax or 9, d.open and 1 or 0, { list = d.players or {} }, d.ver or "" })
+    d.taken or 0, d.seatMax or 9, d.open and 1 or 0, { list = d.players or {} }, d.ver or "",
+    d.paused and 1 or 0 })
 end
 ENC[OP.JOIN] = function(d) return Protocol.encode(OP.JOIN, { d.table, d.seat or "", d.ver or "" }) end
 ENC[OP.SEAT] = function(d) return Protocol.encode(OP.SEAT, { d.tableId, { list = d.players } }) end
@@ -235,6 +236,7 @@ DEC[OP.TABLE] = function(f)
     variant = leaf(f[5]), taken = tn(leaf(f[6])), seatMax = tn(leaf(f[7])), open = leaf(f[8]) == "1" }
   if f[9] then d.players = list(f[9]) end        -- appended seated-player names (older hosts omit)
   if f[10] then local v = leaf(f[10]); if v ~= "" then d.ver = v end end   -- host's addon version
+  if f[11] then d.paused = leaf(f[11]) == "1" end                          -- break status
   return d
 end
 DEC[OP.JOIN] = function(f)

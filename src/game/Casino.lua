@@ -197,6 +197,12 @@ function Casino:startGame()
   return self.tableHost:startGame()
 end
 
+-- toggle the table's break: returns ok, nowPaused
+function Casino:pauseTable()
+  if not self.tableHost then return false, "not hosting a table" end
+  return true, self.tableHost:setPaused(not self.tableHost.paused)
+end
+
 function Casino:humanAct(action, amount)
   if self.tableHost then return self.tableHost:humanAct(action, amount) end
   if self.client then return self.client:humanAct(action, amount) end

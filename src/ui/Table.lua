@@ -66,6 +66,13 @@ local function build()
   end)
   frame.leave:SetWidth(92); frame.leave:SetHeight(18)
   frame.leave:SetPoint("TOPRIGHT", -6, -4)
+  -- host only: break toggle ("Pause" <-> "Resume"); a live hand always finishes
+  frame.pause = W.button(frame, "Pause", function()
+    if ns.onSlash then ns.onSlash("pause") end
+  end)
+  frame.pause:SetWidth(70); frame.pause:SetHeight(18)
+  frame.pause:SetPoint("TOPRIGHT", -102, -4)
+  frame.pause:Hide()
 
   -- the table itself: a stadium poker table (wood rail + felt + board inlay).
   -- Cards/pot/seats anchor to frame.felt's CENTER; the art's inlay/stencil were
@@ -166,13 +173,23 @@ local function refresh(v)
     W.tween(frame, { dur = 0.28, ease = W.easing.outCubic, fromAlpha = 0, toAlpha = 1 })
   end
 
-  -- contextual: the host CLOSES the table, a player LEAVES it (manual single-table
-  -- mode has neither — hide the button there)
+  -- contextual: the host CLOSES/PAUSES the table, a player LEAVES it (manual
+  -- single-table mode has neither — hide the buttons there)
+  local pausedNow = false
   if ns.casino then
     frame.leave:SetText(ns.casino.tableHost and "Close Table" or "Leave Table")
     frame.leave:Show()
+    if ns.casino.tableHost then
+      pausedNow = ns.casino.tableHost.paused or false
+      frame.pause:SetText(pausedNow and "Resume" or "Pause")
+      frame.pause:Show()
+    else
+      frame.pause:Hide()
+      local t = ns.casino.seatedAt and ns.casino.lobby:get(ns.casino.seatedAt)
+      pausedNow = (t and t.paused) or false
+    end
   else
-    frame.leave:Hide()
+    frame.leave:Hide(); frame.pause:Hide()
   end
 
   frame.pot:SetText(W.commas(v.pot or 0))
@@ -239,10 +256,13 @@ local function refresh(v)
   local STREET = { [0] = "pre-flop", [1] = "flop", [2] = "turn", [3] = "river" }
   local statusText
   if v.aborted then statusText = "|cffff4444HALTED|r"
+  elseif winLine and pausedNow then statusText = "Hand complete — |cff9ad0fftable paused for a break|r"
   elseif winLine then statusText = "Hand complete — next deal in a moment…"
+  elseif pausedNow and not v.toAct then statusText = "|cff9ad0ffTable paused — back soon!|r"
   elseif v.myTurn then statusText = "|cffffd95cYour turn!|r" .. clock
   elseif v.toAct then statusText = "Waiting for " .. tostring(v.toAct) .. "…" .. clock
   else statusText = "" end
+  if pausedNow and v.toAct then statusText = statusText .. "  |cff9ad0ff(break after this hand)|r" end
   if not winLine and STREET[v.street] then statusText = statusText .. "  (" .. STREET[v.street] .. ")" end
   frame.status:SetText(statusText)
 

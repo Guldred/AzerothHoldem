@@ -21,6 +21,7 @@ function Lobby:onAd(d)
     variant = d.variant, taken = d.taken, seatMax = d.seatMax, open = d.open,
     players = d.players,                            -- seated names (nil from old hosts)
     ver = d.ver,                                    -- host's addon version (nil from old hosts)
+    paused = d.paused,                              -- on a break (no new hands dealt)
     lastSeen = self.now,
   }
 end

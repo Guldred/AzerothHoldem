@@ -294,6 +294,12 @@ local handlers = {
     ns.casino:closeTable()
     Log.info("Table closed" .. (ns.casino and ns.casino._closing and " — current hand finishes first." or "."))
   end,
+  pause = function()
+    if not (ns.casino and ns.casino.tableHost) then return Log.info("You are not hosting a table.") end
+    local _, nowPaused = ns.casino:pauseTable()
+    if nowPaused then Log.info("Table paused — break time! (A live hand still finishes.)")
+    else Log.info("Break over — dealing continues.") end
+  end,
   mode = function(a)
     local m = (a[2] or ""):upper()
     if m ~= "GUILD" and m ~= "GROUP" then return Log.info("/azh mode guild  or  /azh mode group") end
