@@ -53,10 +53,12 @@ function W.panel(parent, w, h, title, closable)
   f:SetWidth(w or 120); f:SetHeight(h or 120)
   if f.SetBackdrop then
     local cloth = W.artOK(W.ART.panelbg)
+    -- the cloth is STRETCHED, not tiled: its noise isn't seamless, so tiling drew
+    -- visible seam lines across larger panels (every 256px)
     f:SetBackdrop({
       bgFile = cloth and W.ART.panelbg or "Interface\\Tooltips\\UI-Tooltip-Background",
       edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-      tile = true, tileSize = cloth and 256 or 16, edgeSize = 16,
+      tile = not cloth, tileSize = 16, edgeSize = 16,
       insets = { left = 4, right = 4, top = 4, bottom = 4 },
     })
     -- the cloth texture carries its own tone; only tint the plain fallback dark

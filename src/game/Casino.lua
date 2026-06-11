@@ -28,6 +28,10 @@ local LOBBY = "0"
 function Casino.new(cfg)
   return setmetatable({
     tp = cfg.transport, me = cfg.selfName, broadcast = cfg.broadcast or "RAID", cfg = cfg,
+    -- exact-release gate: a table only seats players on the SAME addon version
+    -- (mixed releases degrade subtly — "everyone updates together" is the rule).
+    -- Injectable for tests; defaults to this build's version.
+    ver = cfg.version or ns.Const.ADDON_VER,
     lobby = ns.Lobby.new(cfg.lobbyTtl or 30),
     sessions = {},        -- tableId -> session (our Host engine if hosting it, our Client if seated)
     seats = {},           -- tableId -> seated player list (last SEAT seen, for the UI)
@@ -80,7 +84,20 @@ function Casino:_control(sender, payload, channel)
   elseif op == OP.PING then
     if self.tableHost then self.tableHost:advertise(true) end   -- rate-limited
   elseif op == OP.JOIN then
-    if self.tableHost and d.table == self.me then self.tableHost:onJoin(sender) end
+    if self.tableHost and d.table == self.me then
+      if d.ver ~= self.ver then               -- exact-release gate (nil ver = pre-gate build)
+        self:_send(LOBBY, Codec.encode(OP.REFUSE, { handNo = 0, actionNo = 0,
+          reason = "This table runs Azeroth Hold'em v" .. self.ver .. " but you have "
+            .. (d.ver and ("v" .. d.ver) or "an older version")
+            .. " — please install the same (latest) release." }), "WHISPER", sender)
+        return
+      end
+      self.tableHost:onJoin(sender)
+    end
+  elseif op == OP.REFUSE then
+    -- our join was refused (version mismatch): release the pending seat + tell the user
+    if not self.client then self.seatedAt = nil end
+    if self.cfg.onNotice then self.cfg.onNotice(d.reason) end
   elseif op == OP.LEAVE then
     if self.tableHost and d.table == self.me then
       self.tableHost:onLeave((d.player ~= "" and d.player) or sender)
@@ -106,6 +123,7 @@ function Casino:host(opts)
   if self.tableHost then return end
   self.tableHost = ns.TableHost.new({
     tableId = self.me, name = opts.name, sb = opts.sb, bb = opts.bb, variant = opts.variant,
+    version = self.ver,                       -- advertised so joiners can self-gate
     seatMax = opts.seatMax, defaultStack = self.cfg.defaultStack, broadcast = self.broadcast,
     adInterval = self.cfg.adInterval, restTicks = opts.restTicks, turnTimeout = self.cfg.turnTimeout,
     postControl = function(p, ch) self:_send(LOBBY, p, ch, nil) end,
@@ -119,9 +137,21 @@ end
 
 function Casino:join(tableId)
   if self.seatedAt == tableId then return end
+  -- joiner-side version gate: an OLD host has no gate of its own, so we must also
+  -- refuse from our side when the advertised version differs from ours
+  local t = self.lobby:get(tableId)
+  if t and t.ver ~= self.ver then
+    if self.cfg.onNotice then
+      self.cfg.onNotice("Can't join: that table runs "
+        .. (t.ver and ("v" .. t.ver) or "an older version") .. " but you have v" .. self.ver
+        .. " — everyone should install the same (latest) release.")
+    end
+    return false, "version mismatch"
+  end
   if self.seatedAt then self:leave() end
   self.seatedAt = tableId
-  self:_send(LOBBY, Codec.encode(OP.JOIN, { table = tableId }), self.broadcast, nil)
+  self:_send(LOBBY, Codec.encode(OP.JOIN, { table = tableId, ver = self.ver }), self.broadcast, nil)
+  return true
 end
 
 function Casino:_spawnClient(tableId)

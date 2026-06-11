@@ -109,9 +109,9 @@ end
 -- ---- lobby / seating (multi-table casino; ride at routing tag "0") ----------
 ENC[OP.TABLE] = function(d)
   return Protocol.encode(OP.TABLE, { d.tableId, d.name or "", d.sb, d.bb, d.variant or "texas",
-    d.taken or 0, d.seatMax or 9, d.open and 1 or 0, { list = d.players or {} } })
+    d.taken or 0, d.seatMax or 9, d.open and 1 or 0, { list = d.players or {} }, d.ver or "" })
 end
-ENC[OP.JOIN] = function(d) return Protocol.encode(OP.JOIN, { d.table, d.seat or "" }) end
+ENC[OP.JOIN] = function(d) return Protocol.encode(OP.JOIN, { d.table, d.seat or "", d.ver or "" }) end
 ENC[OP.SEAT] = function(d) return Protocol.encode(OP.SEAT, { d.tableId, { list = d.players } }) end
 ENC[OP.LEAVE] = function(d) return Protocol.encode(OP.LEAVE, { d.table, d.player or "" }) end
 ENC[OP.RESYNC] = function(d) return Protocol.encode(OP.RESYNC, { d.handNo or 0, d.seat }) end
@@ -219,9 +219,14 @@ DEC[OP.TABLE] = function(f)
   local d = { tableId = leaf(f[1]), name = leaf(f[2]), sb = tn(leaf(f[3])), bb = tn(leaf(f[4])),
     variant = leaf(f[5]), taken = tn(leaf(f[6])), seatMax = tn(leaf(f[7])), open = leaf(f[8]) == "1" }
   if f[9] then d.players = list(f[9]) end        -- appended seated-player names (older hosts omit)
+  if f[10] then local v = leaf(f[10]); if v ~= "" then d.ver = v end end   -- host's addon version
   return d
 end
-DEC[OP.JOIN] = function(f) local s = leaf(f[2]); return { table = leaf(f[1]), seat = s ~= "" and s or nil } end
+DEC[OP.JOIN] = function(f)
+  local s = leaf(f[2])
+  local v = f[3] and leaf(f[3]) or ""
+  return { table = leaf(f[1]), seat = s ~= "" and s or nil, ver = v ~= "" and v or nil }
+end
 DEC[OP.SEAT] = function(f) return { tableId = leaf(f[1]), players = list(f[2]) } end
 DEC[OP.LEAVE] = function(f) return { table = leaf(f[1]), player = leaf(f[2]) } end
 DEC[OP.RESYNC] = function(f) return { handNo = tn(leaf(f[1])), seat = leaf(f[2]) } end

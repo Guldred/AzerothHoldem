@@ -72,6 +72,7 @@ function TableHost:advertise(onDemand)
     tableId = self.id, name = self.name, sb = self.cfg.sb, bb = self.cfg.bb,
     variant = self.cfg.variant or "texas", taken = #self.order, seatMax = self.seatMax, open = self.open,
     players = self:_seatList(),                    -- who is seated (shown in the lobby)
+    ver = self.cfg.version,                        -- exact-release gate for joiners
   }), self.broadcast)
 end
 

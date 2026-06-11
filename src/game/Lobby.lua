@@ -20,6 +20,7 @@ function Lobby:onAd(d)
     tableId = d.tableId, host = d.tableId, name = d.name, sb = d.sb, bb = d.bb,
     variant = d.variant, taken = d.taken, seatMax = d.seatMax, open = d.open,
     players = d.players,                            -- seated names (nil from old hosts)
+    ver = d.ver,                                    -- host's addon version (nil from old hosts)
     lastSeen = self.now,
   }
 end

@@ -139,6 +139,10 @@ local function ensureComm()
   ns.comm = ns.Transport.new({
     selfName = UnitName("player"),
     epoch = epoch,
+    onWrongVersion = function(sender)
+      Log.error(sender .. " is running an incompatible Azeroth Hold'em version — " ..
+        "everyone should install the same (latest) release.")
+    end,
     send = function(wire, channel, target) ns.Scheduler.queueSend(wire, channel, target) end,
     deliver = function(sender, payload, channel)
       -- casino mode routes tagged traffic; single-table mode goes straight to the session
@@ -195,6 +199,7 @@ local function ensureCasino()
       transport = ns.comm, selfName = UnitName("player"), broadcast = casinoChannel(),
       entropy = genEntropy, nonces = genNonces,         -- pass the FUNCTIONS (fresh seed per hand)
       defaultStack = (ns.db and ns.db.defaultStack) or 1000, onCheat = onCheat,
+      onNotice = function(msg) Log.error(msg) end,   -- join refusals, version mismatches
       -- comms budget: a host sends ONE small ad per minute; the PING-on-open path
       -- handles instant discovery, so the periodic ad is just a TTL keep-alive.
       adInterval = 60, lobbyTtl = 180, turnTimeout = 60, human = true,

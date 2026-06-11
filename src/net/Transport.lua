@@ -46,6 +46,7 @@ function Transport.new(cfg)
     send = cfg.send,
     deliver = cfg.deliver,
     onFailure = cfg.onFailure,
+    onWrongVersion = cfg.onWrongVersion,   -- fn(sender, theirProtoVer): mismatch notice
     retransmitTicks = cfg.retransmitTicks or 4,
     maxRetries = cfg.maxRetries or 6,
     retentionTicks = cfg.retentionTicks or 300,
@@ -98,7 +99,18 @@ end
 function Transport:onFrame(sender, wire, channel)
   local fr = Protocol.parseFrame(wire)
   if not fr then return end
-  if fr.protoVer ~= self.protoVer then return end   -- incompatible build: drop (Session gates versions)
+  if fr.protoVer ~= self.protoVer then
+    -- incompatible build: drop — but TELL the user once per sender (a silent drop
+    -- reads as "the addon is broken" when versions drift inside a guild)
+    if self.onWrongVersion then
+      self.warnedVer = self.warnedVer or {}
+      if not self.warnedVer[sender] then
+        self.warnedVer[sender] = true
+        self.onWrongVersion(sender, fr.protoVer)
+      end
+    end
+    return
+  end
 
   -- duplicate of an already-delivered data message: re-ACK (in case our ACK was
   -- lost) and drop without re-delivering.

@@ -133,8 +133,13 @@ local function refresh()
         rf.players:SetText("Host: " .. t.tableId)
       end
       local full = (t.taken or 0) >= (t.seatMax or 9)
+      local verMismatch = c and t.ver ~= c.ver      -- exact-release gate (nil = old host)
       if t.tableId == mySeat or (hosting and c.tableHost.id == t.tableId) then
         rf.btn:SetText("Here"); if rf.btn.Disable then rf.btn:Disable() end; rf.btn:Show()
+      elseif verMismatch then
+        rf.btn:SetText("Update"); if rf.btn.Disable then rf.btn:Disable() end; rf.btn:Show()
+        rf.players:SetText("Different addon version (" .. (t.ver and ("v" .. t.ver) or "older")
+          .. " vs your v" .. c.ver .. ") — install the same release.")
       elseif full then
         rf.btn:SetText("Full"); if rf.btn.Disable then rf.btn:Disable() end; rf.btn:Show()
       else
