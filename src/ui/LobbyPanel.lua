@@ -11,7 +11,7 @@ local COL = W.COL
 local function rgba(t, a) return t[1], t[2], t[3], a or t[4] or 1 end
 
 local panel, rows
-local ROWS = 7
+local ROWS = 6
 
 local function casino() return ns.casino end
 
@@ -23,8 +23,8 @@ local function setMode(m)
 end
 
 local function build()
-  panel = W.panel(UIParent, 380, 420, "Azeroth Hold'em — Casino", true)
-  panel:SetPoint("CENTER", 200, 0)
+  panel = W.panel(UIParent, 380, 470, "Azeroth Hold'em — Casino", true)
+  panel:SetPoint("CENTER", 330, 0)    -- clear of the table window (560 wide at CENTER)
 
   -- who you play with
   panel.modeL = W.label(panel, "Play with:", "GameFontNormal")
@@ -44,11 +44,13 @@ local function build()
   rows = {}
   for i = 1, ROWS do
     local rf = CreateFrame("Frame", nil, panel)
-    rf:SetWidth(352); rf:SetHeight(26); rf:SetPoint("TOPLEFT", 12, -82 - (i - 1) * 28)
+    rf:SetWidth(352); rf:SetHeight(42); rf:SetPoint("TOPLEFT", 12, -82 - (i - 1) * 46)
     rf.stripe = rf:CreateTexture(nil, "BACKGROUND")
     rf.stripe:SetAllPoints(rf); rf.stripe:SetTexture(rgba(COL.feltLt, (i % 2 == 0) and 0.12 or 0.05))
     rf.label = W.label(rf, "", "GameFontHighlightSmall", "LEFT")
-    rf.label:SetPoint("LEFT", 6, 0); rf.label:SetWidth(250)
+    rf.label:SetPoint("TOPLEFT", 6, -5); rf.label:SetWidth(250)
+    rf.players = W.label(rf, "", "GameFontDisableSmall", "LEFT")   -- who's seated
+    rf.players:SetPoint("BOTTOMLEFT", 6, 5); rf.players:SetWidth(280)
     rf.btn = W.button(rf, "Join"); rf.btn:SetWidth(56); rf.btn:SetHeight(20); rf.btn:SetPoint("RIGHT", -2, 0)
     rf:Hide()
     rows[i] = rf
@@ -75,7 +77,9 @@ local function build()
   panel.create = W.button(panel, "Create Table", function()
     local sb = tonumber(panel.sb:GetText()) or 5
     local bb = tonumber(panel.bb:GetText()) or (sb * 2)
-    if ns.onSlash then ns.onSlash(string.format("open Table %d %d", sb, bb)) end
+    -- "-" = default name ("<You>'s Table"), so players can identify the host
+    if ns.onSlash then ns.onSlash(string.format("open - %d %d", sb, bb)) end
+    panel:Hide()                                    -- get out of the table window's way
   end)
   panel.create:SetWidth(110); panel.create:SetPoint("BOTTOMRIGHT", -12, 12)
   panel.hint = W.label(panel, "Tables deal automatically once 2+ players sit.", "GameFontDisableSmall")
@@ -117,6 +121,17 @@ local function refresh()
       rf:Show()
       rf.label:SetText(string.format("|cffffd966%s|r   %d/%d seats   blinds %s/%s",
         t.name or t.tableId, t.taken, t.seatMax, W.commas(t.sb), W.commas(t.bb)))
+      -- who's at the table: from the ad (fresh) or the last SEAT broadcast we heard
+      local names = t.players or (c and c.seats and c.seats[t.tableId])
+      if names and #names > 0 then
+        local shown = {}
+        for k = 1, math.min(#names, 4) do shown[k] = names[k] end
+        local line = table.concat(shown, ", ")
+        if #names > 4 then line = line .. " +" .. (#names - 4) end
+        rf.players:SetText("Playing: " .. line)
+      else
+        rf.players:SetText("Host: " .. t.tableId)
+      end
       local full = (t.taken or 0) >= (t.seatMax or 9)
       if t.tableId == mySeat or (hosting and c.tableHost.id == t.tableId) then
         rf.btn:SetText("Here"); if rf.btn.Disable then rf.btn:Disable() end; rf.btn:Show()
@@ -124,7 +139,10 @@ local function refresh()
         rf.btn:SetText("Full"); if rf.btn.Disable then rf.btn:Disable() end; rf.btn:Show()
       else
         rf.btn:SetText("Join"); if rf.btn.Enable then rf.btn:Enable() end; rf.btn:Show()
-        rf.btn:SetScript("OnClick", function() if ns.onSlash then ns.onSlash("sit " .. t.tableId) end end)
+        rf.btn:SetScript("OnClick", function()
+          if ns.onSlash then ns.onSlash("sit " .. t.tableId) end
+          panel:Hide()                              -- get out of the table window's way
+        end)
       end
     else
       rf:Hide()

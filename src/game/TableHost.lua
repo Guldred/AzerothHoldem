@@ -60,16 +60,18 @@ end
 
 function TableHost:_broadcastSeats()
   self.cfg.postControl(Codec.encode(OP.SEAT, { tableId = self.id, players = self:_seatList() }), self.broadcast)
+  self:advertise(true)    -- keep the lobby's seat counts + player names fresh (rate-limited)
 end
 
--- onDemand: a floor PING asked for an immediate ad (rate-limited so a burst of
--- arrivals can't make the host spam the channel).
+-- onDemand: a floor PING / seating change asked for an immediate ad (rate-limited
+-- so a burst can't make the host spam the channel).
 function TableHost:advertise(onDemand)
   if onDemand and self._lastAdTick and (self.ticks - self._lastAdTick) < 2 then return end
   self._lastAdTick = self.ticks
   self.cfg.postControl(Codec.encode(OP.TABLE, {
     tableId = self.id, name = self.name, sb = self.cfg.sb, bb = self.cfg.bb,
     variant = self.cfg.variant or "texas", taken = #self.order, seatMax = self.seatMax, open = self.open,
+    players = self:_seatList(),                    -- who is seated (shown in the lobby)
   }), self.broadcast)
 end
 

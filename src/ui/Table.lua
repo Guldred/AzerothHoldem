@@ -61,7 +61,10 @@ local function build()
   -- the table itself: a stadium poker table (wood rail + felt + board inlay).
   -- Cards/pot/seats anchor to frame.felt's CENTER; the art's inlay/stencil were
   -- drawn for this 544x292 mapping (see art/build_ui.sh) — move them together.
-  frame.felt = frame:CreateTexture(nil, "BACKGROUND")
+  -- BORDER layer: the panel backdrop's cloth lives on BACKGROUND — same-layer
+  -- sublevel ordering is not guaranteed, and on some clients the cloth drew OVER
+  -- the table art (a grey film). One layer up removes the ambiguity.
+  frame.felt = frame:CreateTexture(nil, "BORDER")
   if W.artOK(W.ART.table) then
     frame.felt:SetPoint("TOPLEFT", 8, -24); frame.felt:SetPoint("BOTTOMRIGHT", -8, 114)
     frame.felt:SetTexture(W.ART.table)

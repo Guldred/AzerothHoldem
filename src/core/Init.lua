@@ -252,8 +252,12 @@ local handlers = {
     Log.info("Casino floor open. /azh tables to list, /azh open to deal, /azh sit <dealer> to play.")
   end,
   open = function(a)
+    -- "-" = explicit "use the default name" (the lobby UI passes it so blinds can
+    -- follow positionally); the default identifies the host: "<Name>'s Table"
+    local name = a[2]
+    if not name or name == "-" then name = UnitName("player") .. "'s Table" end
     ensureCasino():host({
-      name = a[2] or (UnitName("player") .. "'s Table"),
+      name = name,
       sb = tonumber(a[3]) or (ns.db.sb or 5), bb = tonumber(a[4]) or (ns.db.bb or 10),
       seatMax = tonumber(a[5]) or 9,
       restTicks = 6,                           -- a 6s pause between hands to read the result

@@ -109,7 +109,7 @@ end
 -- ---- lobby / seating (multi-table casino; ride at routing tag "0") ----------
 ENC[OP.TABLE] = function(d)
   return Protocol.encode(OP.TABLE, { d.tableId, d.name or "", d.sb, d.bb, d.variant or "texas",
-    d.taken or 0, d.seatMax or 9, d.open and 1 or 0 })
+    d.taken or 0, d.seatMax or 9, d.open and 1 or 0, { list = d.players or {} } })
 end
 ENC[OP.JOIN] = function(d) return Protocol.encode(OP.JOIN, { d.table, d.seat or "" }) end
 ENC[OP.SEAT] = function(d) return Protocol.encode(OP.SEAT, { d.tableId, { list = d.players } }) end
@@ -216,8 +216,10 @@ DEC[OP.SHOWDOWN] = function(f)
   return { handNo = tn(leaf(f[1])), seat = leaf(f[2]), reveals = parseReveals(f[3]), handName = leaf(f[4]) }
 end
 DEC[OP.TABLE] = function(f)
-  return { tableId = leaf(f[1]), name = leaf(f[2]), sb = tn(leaf(f[3])), bb = tn(leaf(f[4])),
+  local d = { tableId = leaf(f[1]), name = leaf(f[2]), sb = tn(leaf(f[3])), bb = tn(leaf(f[4])),
     variant = leaf(f[5]), taken = tn(leaf(f[6])), seatMax = tn(leaf(f[7])), open = leaf(f[8]) == "1" }
+  if f[9] then d.players = list(f[9]) end        -- appended seated-player names (older hosts omit)
+  return d
 end
 DEC[OP.JOIN] = function(f) local s = leaf(f[2]); return { table = leaf(f[1]), seat = s ~= "" and s or nil } end
 DEC[OP.SEAT] = function(f) return { tableId = leaf(f[1]), players = list(f[2]) } end
