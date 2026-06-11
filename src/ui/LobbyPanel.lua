@@ -23,7 +23,7 @@ local function setMode(m)
 end
 
 local function build()
-  panel = W.panel(UIParent, 380, 470, "Azeroth Hold'em — Casino", true)
+  panel = W.panel(UIParent, 380, 470, "Azeroth Hold'em — Casino  v" .. ns.Const.ADDON_VER, true)
   panel:SetPoint("CENTER", 330, 0)    -- clear of the table window (560 wide at CENTER)
 
   -- who you play with
