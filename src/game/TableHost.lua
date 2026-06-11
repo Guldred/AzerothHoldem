@@ -31,6 +31,10 @@ function TableHost.new(cfg)
     ledger = Ledger.new(), order = {}, open = true,
     ticks = 0, adInterval = cfg.adInterval or 5, restTicks = 0, restDelay = cfg.restTicks or 2,
     buttonIdx = 1, host = nil, handNo = 0,
+    -- the FIRST hand is dealt when the host says so (startGame) — they may want to
+    -- wait for more players; afterwards hands continue automatically. Tests pass
+    -- autoStart=true to keep driving tables without UI interaction.
+    started = cfg.autoStart or false,
     pendingSeat = {}, pendingLeave = {}, lastStack = {},
   }, TableHost)
   self:_seat(cfg.tableId)                       -- the dealer plays too
@@ -188,12 +192,21 @@ function TableHost:disband()
   self:_broadcastSeats()
 end
 
+-- the host opens play: deals the first hand now (if 2+ are seated) and lets
+-- subsequent hands continue automatically
+function TableHost:startGame()
+  self.started = true
+  if #self.order < 2 then return false, "need 2+ players" end
+  if self.host and self.host.phase ~= Host.PHASE.DONE then return false, "hand in progress" end
+  return self:startHand()
+end
+
 function TableHost:tick(dt)
   self.ticks = self.ticks + (dt or 1)
   if self.host then self.host:tick() end            -- drive the live hand's deadlines/timeouts
   if self.open and self.ticks % self.adInterval == 0 then self:advertise() end
   if self.restTicks > 0 then self.restTicks = self.restTicks - 1 end
-  if self.open and (not self.host or self.host.phase == Host.PHASE.DONE)
+  if self.open and self.started and (not self.host or self.host.phase == Host.PHASE.DONE)
       and self.restTicks == 0 and #self.order >= 2 then
     self:startHand()
   end

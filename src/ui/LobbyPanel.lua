@@ -77,10 +77,14 @@ local function build()
   panel.create = W.button(panel, "Create Table", function()
     local sb = tonumber(panel.sb:GetText()) or 5
     local bb = tonumber(panel.bb:GetText()) or (sb * 2)
-    -- "-" = default name ("<You>'s Table"), so players can identify the host
+    -- "-" = default name ("<You>'s Table"), so players can identify the host.
+    -- The lobby stays open: it is the waiting room until the host starts the game.
     if ns.onSlash then ns.onSlash(string.format("open - %d %d", sb, bb)) end
-    panel:Hide()                                    -- get out of the table window's way
   end)
+  panel.start = W.button(panel, "Start Game", function()
+    if ns.onSlash then ns.onSlash("start") end
+  end)
+  panel.start:SetWidth(100); panel.start:SetPoint("BOTTOMRIGHT", -120, 70); panel.start:Hide()
   panel.create:SetWidth(110); panel.create:SetPoint("BOTTOMRIGHT", -12, 12)
   panel.hint = W.label(panel, "Tables deal automatically once 2+ players sit.", "GameFontDisableSmall")
   panel.hint:SetPoint("BOTTOMLEFT", 14, 16)
@@ -97,8 +101,12 @@ end
 
 local function refresh()
   if not panel then return end
-  if panel.IsShown and not panel:IsShown() then return end
   local c = casino()
+  -- track "a game is active for us" even while hidden, so reopening the lobby
+  -- mid-game (via /azh) is not instantly re-hidden by the rising-edge check below
+  local inGame = (c and ((c.client and c.client.seats) or
+    (c.tableHost and c.tableHost.host and c.tableHost.host.phase ~= "done"))) and true or false
+  if panel.IsShown and not panel:IsShown() then panel._inGame = inGame; return end
   local mode = (ns.getCasinoMode and ns.getCasinoMode()) or "GUILD"
 
   -- the active mode's button is "pressed" (disabled); the other is clickable
@@ -146,7 +154,8 @@ local function refresh()
         rf.btn:SetText("Join"); if rf.btn.Enable then rf.btn:Enable() end; rf.btn:Show()
         rf.btn:SetScript("OnClick", function()
           if ns.onSlash then ns.onSlash("sit " .. t.tableId) end
-          panel:Hide()                              -- get out of the table window's way
+          -- the lobby stays open as the waiting room; it tucks itself away when
+          -- the game actually starts (see the rising-edge hide in refresh)
         end)
       end
     else
@@ -156,18 +165,41 @@ local function refresh()
 
   -- standing + contextual buttons
   if hosting then
-    panel.status:SetText("You are hosting (" .. #c.tableHost.order .. " seated).")
+    local th = c.tableHost
+    if th.started then
+      panel.status:SetText("You are hosting (" .. #th.order .. " seated).")
+      panel.start:Hide()
+    else
+      panel.status:SetText("Waiting for players — " .. #th.order .. " seated. Start when ready!")
+      panel.start:Show()
+      if #th.order >= 2 then
+        panel.start:SetText("Start Game"); if panel.start.Enable then panel.start:Enable() end
+      else
+        panel.start:SetText("Need 2+"); if panel.start.Disable then panel.start:Disable() end
+      end
+    end
     panel.closeT:Show(); panel.leave:Hide()
     if panel.create.Disable then panel.create:Disable() end
   elseif mySeat then
-    panel.status:SetText("Seated at " .. tostring(mySeat) .. "'s table.")
-    panel.leave:Show(); panel.closeT:Hide()
+    local t = c.lobby:get(mySeat)
+    if c.client and c.client.seats then
+      panel.status:SetText("Seated at " .. tostring(mySeat) .. "'s table.")
+    else
+      panel.status:SetText("Seated at " .. tostring((t and t.name) or mySeat)
+        .. " — waiting for the host to start…")
+    end
+    panel.start:Hide(); panel.leave:Show(); panel.closeT:Hide()
     if panel.create.Disable then panel.create:Disable() end
   else
     panel.status:SetText("")
-    panel.leave:Hide(); panel.closeT:Hide()
+    panel.start:Hide(); panel.leave:Hide(); panel.closeT:Hide()
     if panel.create.Enable then panel.create:Enable() end
   end
+
+  -- tuck the lobby away exactly when a game becomes active for us (rising edge
+  -- only — reopening with /azh during play stays possible)
+  if inGame and not panel._inGame then panel:Hide() end
+  panel._inGame = inGame
 end
 
 build()

@@ -241,7 +241,16 @@ local A = ns.Const.ACTION
 local handlers = {
   host = function(a) startHost(tonumber(a[2]) or (ns.db.sb or 5), tonumber(a[3]) or (ns.db.bb or 10)) end,
   join = function() joinTable() end,
-  start = function() if ns.session and ns.session.start then ns.session:start() else Log.error("Host a table first.") end end,
+  start = function()
+    if ns.session and ns.session.start then return ns.session:start() end
+    if ns.casino and ns.casino.tableHost then
+      local ok, err = ns.casino:startGame()
+      if ok then Log.info("Game on — dealing the first hand!")
+      else Log.error("Can't start: " .. tostring(err)) end
+      return
+    end
+    Log.error("Host a table first.")
+  end,
   fold = function() doAct(A.FOLD) end,
   check = function() doAct(A.CHECK) end,
   call = function() doAct(A.CALL) end,

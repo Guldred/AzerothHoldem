@@ -124,6 +124,7 @@ function Casino:host(opts)
   self.tableHost = ns.TableHost.new({
     tableId = self.me, name = opts.name, sb = opts.sb, bb = opts.bb, variant = opts.variant,
     version = self.ver,                       -- advertised so joiners can self-gate
+    autoStart = opts.autoStart,               -- tests; in-game the host starts manually
     seatMax = opts.seatMax, defaultStack = self.cfg.defaultStack, broadcast = self.broadcast,
     adInterval = self.cfg.adInterval, restTicks = opts.restTicks, turnTimeout = self.cfg.turnTimeout,
     postControl = function(p, ch) self:_send(LOBBY, p, ch, nil) end,
@@ -189,6 +190,11 @@ function Casino:closeTable()
   if handLive(th) then self._closing = true
   else th:disband(); self.tableHost = nil end
   return true
+end
+
+function Casino:startGame()
+  if not self.tableHost then return false, "not hosting a table" end
+  return self.tableHost:startGame()
 end
 
 function Casino:humanAct(action, amount)
