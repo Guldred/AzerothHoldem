@@ -120,6 +120,8 @@ function Client:onMessage(sender, payload, channel)
     self.handNo = d.handNo
     self.seats = d.seats
     self.order = canonical(d.seats)
+    self.stacks = d.stacks                       -- chip counts (display; nil from old hosts)
+    self.pot = 0
     self.hostName = sender
     self.phase = PHASE.COMMIT
     -- entropy may be a fixed table (single-hand tests) or a per-hand function (a
@@ -160,6 +162,7 @@ function Client:onMessage(sender, payload, channel)
 
   elseif op == OP.BET_TURN then
     self.toActSeat = d.seat                      -- public: whose turn it is (for the UI)
+    if d.pot then self.pot = d.pot end           -- current pot total (for the UI)
     if d.seat == self.me and self.phase == PHASE.DEAL then
       if self.human then
         -- minTo/maxTo: the legal bet/raise-TO range from the host (raise amounts are
@@ -200,6 +203,9 @@ function Client:onMessage(sender, payload, channel)
 
   elseif op == OP.HANDEND then
     self.deltas = d.deltas
+    if self.stacks then                          -- roll the results into the chip counts
+      for seat, dlt in pairs(d.deltas) do self.stacks[seat] = (self.stacks[seat] or 0) + dlt end
+    end
 
   elseif op == OP.ENDREVEAL then
     self:_audit(d)
@@ -230,6 +236,12 @@ function Client:_bootstrap(d, sender)
   self.commits = d.commits           -- host-provided seedCommits (reduced trust this hand)
   self.currentBet, self.minRaise = d.currentBet, d.minRaise
   self.mySeatInfo = d.seatInfo[self.me]
+  self.stacks, self.pot = {}, 0      -- rebuild the money display from the snapshot
+  for seat, si in pairs(d.seatInfo) do
+    self.stacks[seat] = si.stack
+    self.pot = self.pot + (si.total or 0)
+    if si.folded then self.folded[seat] = true end
+  end
   -- mark the handshake as already-passed so _advance is a no-op for us
   self.sentReveal, self.sentStateHash, self.resumed = true, true, true
   self.phase = PHASE.DEAL

@@ -71,6 +71,7 @@ function Host:start()
   self:_bcast(OP.HANDSTART, {
     handNo = self.handNo, button = self.cfg.buttonSeat, sb = self.cfg.sb,
     bb = self.cfg.bb, ante = self.cfg.ante or 0, seats = self.seats,
+    stacks = self.cfg.stacks,                       -- chip counts for everyone's display
   })
   self:_bcast(OP.COMMITSEED, { handNo = self.handNo })
   local r, salt = self.cfg.entropy.r, self.cfg.entropy.salt
@@ -192,10 +193,12 @@ function Host:_betTurnPayload(seat, la)
   local minTo, maxTo
   if la.canRaise then minTo, maxTo = la.minRaiseTo, la.maxRaiseTo
   elseif la.canBet then minTo, maxTo = la.minBetTo, la.maxBetTo end
+  local rules, pot = self.dealer.rules, 0
+  for i = 1, #self.seats do pot = pot + rules.seats[self.seats[i]].total end
   return {
     handNo = self.handNo, actionNo = self.actionNo, seat = seat,
-    toCall = la.toCall or 0, minRaise = self.dealer.rules.minRaiseSize,
-    minTo = minTo, maxTo = maxTo, canCheck = la.canCheck,
+    toCall = la.toCall or 0, minRaise = rules.minRaiseSize,
+    minTo = minTo, maxTo = maxTo, canCheck = la.canCheck, pot = pot,
   }
 end
 
@@ -375,15 +378,18 @@ function Host:tick()
       end
     end
   end
-  -- turn timeout: a player who left or went silent is auto-folded so the hand can't
-  -- hang (the dealer/host's own turn is driven by its policy/UI, never timed out).
+  -- turn timeout (online-poker convention): an unresponsive player auto-CHECKS
+  -- when checking is free, otherwise folds — applies to every human seat, the
+  -- (human) dealer included, so nobody can hold the table hostage.
   if self.phase == PHASE.BETTING and self.dealer then
     local seat = self.dealer.rules.toAct
-    if seat and seat ~= self.me then
+    if seat and (seat ~= self.me or self.human) then
       self.turnTicks = self.turnTicks + 1
       if self.turnTicks >= self.turnTimeout then
         self.turnTicks = 0
-        self:_applyAction(seat, ACTION.FOLD)
+        local la = Rules.legalActions(self.dealer.rules, seat)
+        if seat == self.me then self.awaitingAction = nil end
+        self:_applyAction(seat, (la and la.canCheck) and ACTION.CHECK or ACTION.FOLD)
       end
     end
   end

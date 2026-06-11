@@ -67,9 +67,11 @@ local function build()
   -- create your own
   panel.createL = W.label(panel, "Create a table — blinds:", "GameFontNormal")
   panel.createL:SetPoint("BOTTOMLEFT", 14, 42)
-  panel.sb = W.editbox(panel, 40); panel.sb:SetPoint("LEFT", panel.createL, "RIGHT", 8, 0); panel.sb:SetText("5")
-  panel.slash = W.label(panel, "/"); panel.slash:SetPoint("LEFT", panel.sb, "RIGHT", 3, 0)
-  panel.bb = W.editbox(panel, 40); panel.bb:SetPoint("LEFT", panel.slash, "RIGHT", 5, 0); panel.bb:SetText("10")
+  panel.sb = W.editbox(panel, 30); panel.sb:SetPoint("LEFT", panel.createL, "RIGHT", 10, 0); panel.sb:SetText("5")
+  if panel.sb.SetJustifyH then panel.sb:SetJustifyH("CENTER") end
+  panel.slash = W.label(panel, "/"); panel.slash:SetPoint("LEFT", panel.sb, "RIGHT", 4, 0)
+  panel.bb = W.editbox(panel, 30); panel.bb:SetPoint("LEFT", panel.slash, "RIGHT", 8, 0); panel.bb:SetText("10")
+  if panel.bb.SetJustifyH then panel.bb:SetJustifyH("CENTER") end
   panel.create = W.button(panel, "Create Table", function()
     local sb = tonumber(panel.sb:GetText()) or 5
     local bb = tonumber(panel.bb:GetText()) or (sb * 2)

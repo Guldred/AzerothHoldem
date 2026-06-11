@@ -225,8 +225,10 @@ local function refresh(v)
     if s then
       local k = (i - meIdx) % n                       -- 0 = me (bottom), then around
       local theta = rad(270 + k * (360 / n))
-      box:ClearAllPoints()
-      box:SetPoint("CENTER", frame.felt, "CENTER", AX * cos(theta), AY * sin(theta))
+      local px = AX * cos(theta)
+      if s.id == v.me then px = -118 end              -- your plate sits LEFT of your hole
+      box:ClearAllPoints()                            -- cards so your chips stay visible
+      box:SetPoint("CENTER", frame.felt, "CENTER", px, AY * sin(theta))
       box.name:SetText(s.id == v.me and (s.id .. " (you)") or s.id)
       -- class icon: best-effort lookup (party/raid, then guild roster); when the
       -- class is unknown the plate simply renders without an icon

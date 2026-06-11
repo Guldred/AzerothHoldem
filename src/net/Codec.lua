@@ -43,7 +43,12 @@ end
 -- ---- encoders (op -> payload) ---------------------------------------------
 local ENC = {}
 ENC[OP.HANDSTART] = function(d)
-  return Protocol.encode(OP.HANDSTART, { d.handNo, d.button, d.sb, d.bb, d.ante or 0, { list = d.seats } })
+  -- stacks: chip counts parallel to the seat list (clients display them; absent
+  -- from older hosts — decoders tolerate)
+  local stacks = {}
+  if d.stacks then for i = 1, #d.seats do stacks[i] = d.stacks[d.seats[i]] or 0 end end
+  return Protocol.encode(OP.HANDSTART,
+    { d.handNo, d.button, d.sb, d.bb, d.ante or 0, { list = d.seats }, { list = stacks } })
 end
 ENC[OP.COMMITSEED] = function(d) return Protocol.encode(OP.COMMITSEED, { d.handNo }) end
 ENC[OP.SEEDCMT] = function(d) return Protocol.encode(OP.SEEDCMT, { d.handNo, d.seat, hx(d.commit) }) end
@@ -64,9 +69,10 @@ ENC[OP.REVEAL] = function(d)
 end
 ENC[OP.BET_TURN] = function(d)
   -- minTo/maxTo: the actor's full bet-or-raise-TO range (so a client can submit a
-  -- valid raise-to amount); canCheck saves the client guessing from toCall.
+  -- valid raise-to amount); canCheck saves the client guessing from toCall; pot is
+  -- the current total so every client can display it.
   return Protocol.encode(OP.BET_TURN, { d.handNo, d.actionNo, d.seat, d.toCall, d.minRaise,
-    d.minTo or 0, d.maxTo or 0, d.canCheck and 1 or 0 })
+    d.minTo or 0, d.maxTo or 0, d.canCheck and 1 or 0, d.pot or 0 })
 end
 ENC[OP.REFUSE] = function(d)
   return Protocol.encode(OP.REFUSE, { d.handNo, d.actionNo or 0, d.reason or "" })
@@ -129,8 +135,13 @@ end
 -- ---- decoders (payload -> data) -------------------------------------------
 local DEC = {}
 DEC[OP.HANDSTART] = function(f)
-  return { handNo = tn(leaf(f[1])), button = leaf(f[2]), sb = tn(leaf(f[3])),
-           bb = tn(leaf(f[4])), ante = tn(leaf(f[5])), seats = list(f[6]) }
+  local d = { handNo = tn(leaf(f[1])), button = leaf(f[2]), sb = tn(leaf(f[3])),
+              bb = tn(leaf(f[4])), ante = tn(leaf(f[5])), seats = list(f[6]) }
+  if f[7] then                                   -- appended stacks (older hosts omit)
+    local raw = list(f[7]); d.stacks = {}
+    for i = 1, #raw do d.stacks[d.seats[i]] = tn(raw[i]) end
+  end
+  return d
 end
 DEC[OP.COMMITSEED] = function(f) return { handNo = tn(leaf(f[1])) } end
 DEC[OP.SEEDCMT] = function(f)
@@ -160,6 +171,7 @@ DEC[OP.BET_TURN] = function(f)
   if f[6] then local v = tn(leaf(f[6])); if v and v > 0 then d.minTo = v end end
   if f[7] then local v = tn(leaf(f[7])); if v and v > 0 then d.maxTo = v end end
   if f[8] then d.canCheck = leaf(f[8]) == "1" end
+  if f[9] then d.pot = tn(leaf(f[9])) end
   return d
 end
 DEC[OP.REFUSE] = function(f)

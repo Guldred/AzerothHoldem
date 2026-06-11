@@ -130,6 +130,10 @@ function Casino:_spawnClient(tableId)
     broadcast = self.broadcast, onCheat = self.cfg.onCheat, policy = self.cfg.policy, human = self.cfg.human,
   })
   self.sessions[tableId] = self.client
+  -- if a hand is live and WE are in it (e.g. we relogged mid-hand and just re-sat),
+  -- ask the host to bring us current: it answers with a SNAPSHOT + our hole cards.
+  -- Harmless otherwise — the host ignores RESYNC from seats not in the hand.
+  self.client:resume(tableId)
 end
 
 function Casino:leave()

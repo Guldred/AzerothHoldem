@@ -472,10 +472,13 @@ function ns.UI.viewOf(s)
     end
   else
     v.toAct = s.toActSeat
-    if s.seats then                       -- client knows names + fold status (not stacks)
+    v.pot = s.pot or 0                    -- live pot total (from BET_TURN / SNAPSHOT)
+    if s.seats then
       v.seats = {}
       for i = 1, #s.seats do
-        v.seats[i] = { id = s.seats[i], folded = s.folded and s.folded[s.seats[i]] or false }
+        local id = s.seats[i]
+        v.seats[i] = { id = id, folded = s.folded and s.folded[id] or false,
+                       stack = s.stacks and s.stacks[id] }   -- chip counts (HANDSTART/HANDEND)
       end
     end
     if s.board then for i = 1, #s.board do v.board[i] = s.board[i].val end end
