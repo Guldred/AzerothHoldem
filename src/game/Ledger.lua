@@ -21,9 +21,17 @@ function Ledger.new()
 end
 
 function Ledger:seat(id, name)
-  if self.players[id] then error("Ledger:seat: duplicate player " .. tostring(id)) end
-  self.players[id] = { id = id, name = name, stack = 0, bought = 0, cashedOut = false, history = {} }
-  self.order[#self.order + 1] = id
+  local p = self.players[id]
+  if p and not p.cashedOut then error("Ledger:seat: duplicate player " .. tostring(id)) end
+  if p then
+    -- a RETURNING player (stood up earlier): reactivate the same account — the
+    -- buy-in history accumulates across sittings so settlement stays correct
+    p.cashedOut = false
+    p.history[#p.history + 1] = { kind = "reseat" }
+  else
+    self.players[id] = { id = id, name = name, stack = 0, bought = 0, cashedOut = false, history = {} }
+    self.order[#self.order + 1] = id
+  end
 end
 
 function Ledger:isSeated(id)

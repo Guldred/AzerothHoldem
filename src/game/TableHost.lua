@@ -31,7 +31,7 @@ function TableHost.new(cfg)
     ledger = Ledger.new(), order = {}, open = true,
     ticks = 0, adInterval = cfg.adInterval or 5, restTicks = 0, restDelay = cfg.restTicks or 2,
     buttonIdx = 1, host = nil, handNo = 0,
-    pendingSeat = {}, pendingLeave = {},
+    pendingSeat = {}, pendingLeave = {}, lastStack = {},
   }, TableHost)
   self:_seat(cfg.tableId)                       -- the dealer plays too
   return self
@@ -40,13 +40,18 @@ end
 function TableHost:_seat(player)
   if self.ledger:isSeated(player) or #self.order >= self.seatMax then return false end
   self.ledger:seat(player)
-  self.ledger:buyIn(player, self.cfg.defaultStack or 1000)
+  -- a RETURNING player gets the stack they left with, not a fresh buy-in — leaving
+  -- and re-sitting must never reset chips (no "refill to default" by standing up).
+  -- Busted players (left at 0) do buy in fresh, or they could never play again.
+  local back = self.lastStack[player]
+  self.ledger:buyIn(player, (back and back > 0) and back or (self.cfg.defaultStack or 1000))
   self.order[#self.order + 1] = player
   return true
 end
 
 function TableHost:_unseat(player)
   if not self.ledger:isSeated(player) then return end
+  self.lastStack[player] = self.ledger:stack(player)   -- remembered for a re-sit
   self.ledger:cashOut(player)
   for i = #self.order, 1, -1 do if self.order[i] == player then table.remove(self.order, i) end end
   if self.buttonIdx > #self.order then self.buttonIdx = 1 end

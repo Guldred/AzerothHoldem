@@ -58,6 +58,15 @@ local function build()
   frame = W.panel(UIParent, 560, 430, "Azeroth Hold'em")
   frame:SetPoint("CENTER")
 
+  -- leave/close without slash commands: back to the lobby window in one click
+  frame.leave = W.button(frame, "Leave Table", function()
+    if not ns.onSlash then return end
+    if ns.casino and ns.casino.tableHost then ns.onSlash("close") else ns.onSlash("stand") end
+    if ns.UI.showLobby then ns.UI.showLobby() end
+  end)
+  frame.leave:SetWidth(92); frame.leave:SetHeight(18)
+  frame.leave:SetPoint("TOPRIGHT", -6, -4)
+
   -- the table itself: a stadium poker table (wood rail + felt + board inlay).
   -- Cards/pot/seats anchor to frame.felt's CENTER; the art's inlay/stencil were
   -- drawn for this 544x292 mapping (see art/build_ui.sh) — move them together.
@@ -155,6 +164,15 @@ local function refresh(v)
   if not frame._fadedIn then                                   -- fade the whole table in on open
     frame._fadedIn = true
     W.tween(frame, { dur = 0.28, ease = W.easing.outCubic, fromAlpha = 0, toAlpha = 1 })
+  end
+
+  -- contextual: the host CLOSES the table, a player LEAVES it (manual single-table
+  -- mode has neither — hide the button there)
+  if ns.casino then
+    frame.leave:SetText(ns.casino.tableHost and "Close Table" or "Leave Table")
+    frame.leave:Show()
+  else
+    frame.leave:Hide()
   end
 
   frame.pot:SetText(W.commas(v.pot or 0))
