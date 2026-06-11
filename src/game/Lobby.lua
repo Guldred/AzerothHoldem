@@ -12,8 +12,10 @@ function Lobby.new(ttl)
   return setmetatable({ tables = {}, ttl = ttl or 30, now = 0 }, Lobby)
 end
 
--- record/refresh a table from a decoded TABLE ad (host = the advertiser's name)
+-- record/refresh a table from a decoded TABLE ad (host = the advertiser's name).
+-- A closing host sends a final ad with open=false: drop the table immediately.
 function Lobby:onAd(d)
+  if d.open == false then self.tables[d.tableId] = nil; return end
   self.tables[d.tableId] = {
     tableId = d.tableId, host = d.tableId, name = d.name, sb = d.sb, bb = d.bb,
     variant = d.variant, taken = d.taken, seatMax = d.seatMax, open = d.open,

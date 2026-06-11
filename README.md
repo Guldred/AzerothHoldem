@@ -12,7 +12,9 @@ and a cryptographic anti-cheat layer.
    AddOns screen.
 
 ## Use
-`/azh` lists commands — host or join a table, open the casino lobby, and play.
+Type `/azh` — the casino window opens. Pick **Guild** or **Group** mode, join a
+table from the list (or **Create Table** with your blinds), and play: an action bar
+pops up on your turn. Hands deal automatically once 2+ players sit.
 
 ## Art & license
 Card faces are public-domain (Byron Knoll); the back, felt, chips and dealer button are

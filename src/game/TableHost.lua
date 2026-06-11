@@ -162,12 +162,26 @@ end
 
 function TableHost:stack(player) return self.ledger:isSeated(player) and self.ledger:stack(player) or nil end
 
+-- stop the table: no more ads, joins, or new hands (a live hand finishes first).
+-- The final open=false ad makes every lobby drop the listing immediately.
+function TableHost:close()
+  self.open = false
+  self:advertise()
+end
+
+-- after close(), once no hand is live: release every seat (the empty SEAT broadcast
+-- frees the seated players' clients back to the lobby)
+function TableHost:disband()
+  for i = #self.order, 1, -1 do self:_unseat(self.order[i]) end
+  self:_broadcastSeats()
+end
+
 function TableHost:tick(dt)
   self.ticks = self.ticks + (dt or 1)
   if self.host then self.host:tick() end            -- drive the live hand's deadlines/timeouts
-  if self.ticks % self.adInterval == 0 then self:advertise() end
+  if self.open and self.ticks % self.adInterval == 0 then self:advertise() end
   if self.restTicks > 0 then self.restTicks = self.restTicks - 1 end
-  if not self.host and self.restTicks == 0 and #self.order >= 2 then self:startHand() end
+  if self.open and not self.host and self.restTicks == 0 and #self.order >= 2 then self:startHand() end
 end
 
 ns.TableHost = TableHost

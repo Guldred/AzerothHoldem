@@ -37,15 +37,30 @@ local function groupChannel()
   return "PARTY"   -- solo: degrades gracefully (used for local testing)
 end
 
--- The multi-table casino lives on the GUILD channel whenever you have a guild: every
--- guildmate computes the same channel no matter their party/raid status, so ads and
--- seating always reach each other (a RAID-first rule made a raiding host invisible to
--- non-raid guildmates). Guildless characters fall back to their raid/party.
+-- The casino floor's channel follows the player's chosen mode (saved per account):
+--   GUILD (default): play with your guild — every guildmate computes the same channel
+--     no matter their party/raid status, so ads and seating always reach each other.
+--   GROUP: play with your current raid/party (for cross-guild groups).
 local function casinoChannel()
-  if IsInGuild and IsInGuild() then return "GUILD" end
+  local mode = ns.db and ns.db.casinoMode
+  if mode ~= "GROUP" and IsInGuild and IsInGuild() then return "GUILD" end
   if GetNumRaidMembers() > 0 then return "RAID" end
   return "PARTY"
 end
+
+-- switch Guild/Group mode: persisted, and the floor is re-entered on the new channel.
+-- Blocked while hosting/seated (finish or leave your table first).
+function ns.setCasinoMode(mode)
+  if mode ~= "GUILD" and mode ~= "GROUP" then return false, "unknown mode" end
+  if ns.db then ns.db.casinoMode = mode end
+  if ns.casino then
+    if ns.casino.tableHost then return false, "close your table first (/azh close)" end
+    if ns.casino.seatedAt then return false, "stand up first (/azh stand)" end
+    ns.casino = nil                  -- recreated on the new channel by ensureCasino
+  end
+  return true
+end
+function ns.getCasinoMode() return (ns.db and ns.db.casinoMode) or "GUILD" end
 
 local function groupMembers()
   local me = UnitName("player")
@@ -146,7 +161,9 @@ local function ensureCasino()
       transport = ns.comm, selfName = UnitName("player"), broadcast = casinoChannel(),
       entropy = genEntropy, nonces = genNonces,         -- pass the FUNCTIONS (fresh seed per hand)
       defaultStack = (ns.db and ns.db.defaultStack) or 1000, onCheat = onCheat,
-      adInterval = 30, lobbyTtl = 120, turnTimeout = 60, human = true,
+      -- comms budget: a host sends ONE small ad per minute; the PING-on-open path
+      -- handles instant discovery, so the periodic ad is just a TTL keep-alive.
+      adInterval = 60, lobbyTtl = 180, turnTimeout = 60, human = true,
     })
     ns.casino:announce()              -- ask hosts to re-advertise: instant table list
     Log.info("Entered the casino floor on " .. casinoChannel() .. ".")
@@ -215,9 +232,20 @@ local handlers = {
   end,
   stand = function()
     if not ns.casino then return end
-    if ns.casino.tableHost then return Log.info("You are hosting this table — it stays open while you play.") end
+    if ns.casino.tableHost then return Log.info("You are hosting — /azh close to close your table.") end
     if not ns.casino.seatedAt then return Log.info("You are not seated at a table.") end
     ns.casino:leave(); Log.info("Stood up from the table.")
+  end,
+  close = function()
+    if not (ns.casino and ns.casino.tableHost) then return Log.info("You are not hosting a table.") end
+    ns.casino:closeTable()
+    Log.info("Table closed" .. (ns.casino and ns.casino._closing and " — current hand finishes first." or "."))
+  end,
+  mode = function(a)
+    local m = (a[2] or ""):upper()
+    if m ~= "GUILD" and m ~= "GROUP" then return Log.info("/azh mode guild  or  /azh mode group") end
+    local ok, err = ns.setCasinoMode(m)
+    if ok then Log.info("Casino mode: " .. m .. ".") else Log.error("Can't switch mode: " .. tostring(err)) end
   end,
   tables = function()
     ensureCasino():announce()                  -- refresh the table list right away
@@ -233,10 +261,17 @@ local handlers = {
 local function onSlash(msg)
   local a = {}
   for word in string.gmatch(msg or "", "%S+") do a[#a + 1] = word end
-  local cmd = (a[1] or "status"):lower()
+  if not a[1] then                                  -- bare /azh: open/close the casino window
+    if ns.session then return Log.info(describeTurn()) end   -- manual table in progress: don't disturb it
+    ensureCasino():announce()
+    if ns.UI and ns.UI.toggleLobby then ns.UI.toggleLobby() end
+    return
+  end
+  local cmd = a[1]:lower()
   local h = handlers[cmd]
   if h then h(a) else
-    Log.info("commands: host [sb] [bb] | join | start | fold | check | call | raise N | bet N | status | log N")
+    Log.info("/azh — open the casino window. Also: open | sit <host> | stand | close | mode guild/group | tables | status")
+    Log.info("manual play: host [sb] [bb] | join | start | fold | check | call | raise N | bet N | log N")
   end
 end
 
@@ -279,7 +314,7 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4)
     SLASH_AZEROTHHOLDEM1 = "/azh"
     SLASH_AZEROTHHOLDEM2 = "/azerothholdem"
     SlashCmdList["AZEROTHHOLDEM"] = onSlash
-    Log.info("loaded. /azh for commands.")
+    Log.info("loaded — type /azh to open the casino.")
   elseif event == "CHAT_MSG_ADDON" then
     -- arg1=prefix, arg2=message, arg3=channel, arg4=sender. No RegisterAddonMessagePrefix
     -- in 3.3.5, so we filter by our own prefix here.

@@ -63,8 +63,12 @@ function Casino:onWire(sender, wire, channel)
 end
 
 -- entering the floor (or refreshing the list): ask every host to re-advertise NOW,
--- instead of waiting up to adInterval for the next periodic ad.
+-- instead of waiting up to adInterval for the next periodic ad. Cooldown-limited so
+-- repeatedly opening the lobby window can't spam the channel.
 function Casino:announce()
+  local now = self._ticks or 0
+  if self._lastAnnounce and (now - self._lastAnnounce) < 5 then return end
+  self._lastAnnounce = now
   self:_send(LOBBY, Codec.encode(OP.PING, { kind = "lobby" }), self.broadcast, nil)
 end
 
@@ -83,9 +87,15 @@ function Casino:_control(sender, payload, channel)
     end
   elseif op == OP.SEAT then
     self.seats[d.tableId] = d.players
-    if self.seatedAt == d.tableId and not self.client then
-      for k = 1, #d.players do
-        if d.players[k] == self.me then self:_spawnClient(d.tableId); break end
+    if self.seatedAt == d.tableId then
+      local mine = false
+      for k = 1, #d.players do if d.players[k] == self.me then mine = true; break end end
+      if mine and not self.client then
+        self:_spawnClient(d.tableId)
+      elseif not mine and self.client then
+        -- the table no longer seats us (closed / busted out): release back to the lobby
+        self.sessions[d.tableId] = nil
+        self.client, self.seatedAt = nil, nil
       end
     end
   end
@@ -131,6 +141,17 @@ end
 
 function Casino:changeTable(tableId) self:leave(); self:join(tableId) end
 
+-- the host closes their table: no more ads/joins/hands. If a hand is live it
+-- finishes first; the table then disbands (all seats released) on a later tick.
+function Casino:closeTable()
+  local th = self.tableHost
+  if not th then return false, "not hosting a table" end
+  th:close()
+  if th.host then self._closing = true
+  else th:disband(); self.tableHost = nil end
+  return true
+end
+
 function Casino:humanAct(action, amount)
   if self.tableHost then return self.tableHost:humanAct(action, amount) end
   if self.client then return self.client:humanAct(action, amount) end
@@ -140,8 +161,12 @@ end
 function Casino:tables() return self.lobby:list() end
 
 function Casino:tick(dt)
+  self._ticks = (self._ticks or 0) + (dt or 1)
   self.lobby:tick(dt)
   if self.tableHost then self.tableHost:tick(dt) end
+  if self._closing and self.tableHost and not self.tableHost.host then
+    self.tableHost:disband(); self.tableHost = nil; self._closing = nil
+  end
 end
 
 ns.Casino = Casino
