@@ -12,7 +12,7 @@ local Const = {}
 -- v2: BET_TURN carries the raise-TO range, REFUSE/PING ops, host re-prompts on an
 --     illegal intent (a v1 host deadlocks a raising client — do not mix).
 Const.PROTO_VER = 2
-Const.ADDON_VER = "1.1.0"
+Const.ADDON_VER = "1.2.0"
 
 -- Addon-message prefix. 4 bytes, leaving 254 - 4 = 250 usable text bytes/message.
 Const.PREFIX = "AzHE"
@@ -97,6 +97,8 @@ Const.OP = {
   -- control / transport
   ACK = "AK", RESEND = "RS", RESYNC = "RY", SNAPSHOT = "SN", PAUSE = "PA",
   RESUME = "RM", CHEAT = "CH", PING = "PI", PONG = "PO",
+  -- tournaments (sit&go): level-ups, eliminations, the winner (tag-0 control)
+  TOURNEY = "TY",
 }
 
 -- Betting actions.

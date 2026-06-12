@@ -93,17 +93,25 @@ function Casino:_control(sender, payload, channel)
   elseif op == OP.JOIN then
     if self.tableHost and d.table == self.me then
       if d.ver ~= self.ver then               -- exact-release gate (nil ver = pre-gate build)
-        self:_send(LOBBY, Codec.encode(OP.REFUSE, { handNo = 0, actionNo = 0,
+        self:_sendReliable(LOBBY, Codec.encode(OP.REFUSE, { handNo = 0, actionNo = 0,
+          table = self.me,
           reason = "This table runs Azeroth Hold'em v" .. self.ver .. " but you have "
             .. (d.ver and ("v" .. d.ver) or "an older version")
-            .. " — please install the same (latest) release." }), "WHISPER", sender)
+            .. " — please install the same (latest) release." }), sender)
+        return
+      end
+      local okJ, why = self.tableHost:joinable()
+      if not okJ then                         -- e.g. a Sit&Go already running
+        self:_sendReliable(LOBBY, Codec.encode(OP.REFUSE, { handNo = 0, actionNo = 0,
+          table = self.me, reason = "Can't join: " .. tostring(why) .. "." }), sender)
         return
       end
       self.tableHost:onJoin(sender)
     end
   elseif op == OP.REFUSE then
-    -- our join was refused (version mismatch): release the pending seat + tell the user
-    if not self.client then self.seatedAt = nil end
+    -- our join was refused: release the pending seat (only the one that was
+    -- actually refused — a late refusal must not clear a NEWER pending join)
+    if not self.client and (not d.table or d.table == self.seatedAt) then self.seatedAt = nil end
     if self.cfg.onNotice then self.cfg.onNotice(d.reason) end
   elseif op == OP.LEAVE then
     if self.tableHost and d.table == self.me then
@@ -115,6 +123,11 @@ function Casino:_control(sender, payload, channel)
       elseif d.mode == "return" then self.tableHost:onSitOut(sender, false)
       else self.tableHost:onLeave(sender) end
     end
+  elseif op == OP.TOURNEY then
+    -- sit&go progress (level-ups, eliminations, the winner). ONLY the dealer may
+    -- announce its own table (sender == tableId) — these events print host-voiced
+    -- chat and write the per-character record, so a forged broadcast must die here.
+    if sender == d.tableId and self.cfg.onTourney then self.cfg.onTourney(d) end
   elseif op == OP.SEAT then
     self.seats[d.tableId] = d.players
     self.sitouts = self.sitouts or {}
@@ -145,6 +158,8 @@ function Casino:host(opts)
     autoStart = opts.autoStart,               -- tests; in-game the host starts manually
     seatMax = opts.seatMax, defaultStack = self.cfg.defaultStack, broadcast = self.broadcast,
     adInterval = self.cfg.adInterval, restTicks = opts.restTicks, turnTimeout = self.cfg.turnTimeout,
+    tourney = opts.tourney,                   -- sit&go config { stack, handsPerLevel }
+    onTourney = function(ev) if self.cfg.onTourney then self.cfg.onTourney(ev) end end,
     postControl = function(p, ch) self:_send(LOBBY, p, ch, nil) end,
     sessionTransport = function() return self:_tagged(self.me) end,
     registerHost = function(tableId, host) self.sessions[tableId] = host end,
@@ -226,6 +241,8 @@ end
 function Casino:sitOut()
   if self.tableHost then return false, "you are the dealer — pause the table instead" end
   if not self.seatedAt then return false, "not seated at a table" end
+  local t = self.lobby:get(self.seatedAt)
+  if t and t.tourney then return false, "a Sit & Go seat is play-or-forfeit — Leave Table to bow out" end
   local going = not self.amSittingOut
   self.amSittingOut = going                          -- optimistic; SEAT broadcast confirms
   self:_send(LOBBY, Codec.encode(OP.LEAVE, {
@@ -248,6 +265,13 @@ function Casino:tick(dt)
   if self.tableHost then self.tableHost:tick(dt) end
   if self._closing and self.tableHost and not handLive(self.tableHost) then
     self.tableHost:disband(); self.tableHost = nil; self._closing = nil
+  end
+  -- a finished Sit&Go lingers a few ticks (everyone reads the result), then the
+  -- table closes itself and releases the seats
+  local th = self.tableHost
+  if th and th.tourneyOver and not th.halted
+      and (th.tourneyLinger or 1) <= 0 and not handLive(th) then
+    th:close(); th:disband(); self.tableHost = nil
   end
 end
 

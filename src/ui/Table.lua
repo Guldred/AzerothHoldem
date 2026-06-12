@@ -180,6 +180,27 @@ local function refresh(v)
     W.tween(frame, { dur = 0.28, ease = W.easing.outCubic, fromAlpha = 0, toAlpha = 1 })
   end
 
+  -- live blinds in the title ("Blinds 40/80 · L3" for a sit&go — they escalate)
+  if frame.titleText then
+    local bl
+    if ns.casino and ns.casino.tableHost then
+      local sb, bb = ns.casino.tableHost:currentBlinds()
+      if sb then
+        bl = "Blinds " .. W.commas(sb) .. "/" .. W.commas(bb)
+        if ns.casino.tableHost.tourney then bl = bl .. " · L" .. (ns.casino.tableHost.level + 1) end
+      end
+    elseif ns.casino and ns.casino.client and ns.casino.client.sb then
+      bl = "Blinds " .. W.commas(ns.casino.client.sb) .. "/" .. W.commas(ns.casino.client.bb)
+      local t = ns.casino.seatedAt and ns.casino.lobby:get(ns.casino.seatedAt)
+      if t and t.tourney then bl = bl .. " (rising)" end
+    end
+    local full = bl and ("Azeroth Hold'em — " .. bl) or "Azeroth Hold'em"
+    if frame._titleShown ~= full then           -- SetText re-layouts even when equal
+      frame._titleShown = full
+      frame.titleText:SetText(full)
+    end
+  end
+
   -- contextual: the host CLOSES/PAUSES the table, a player LEAVES it (manual
   -- single-table mode has neither — hide the buttons there)
   local pausedNow = false

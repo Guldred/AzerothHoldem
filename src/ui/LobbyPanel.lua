@@ -49,6 +49,7 @@ local function build()
     rf.stripe:SetAllPoints(rf); rf.stripe:SetTexture(rgba(COL.feltLt, (i % 2 == 0) and 0.12 or 0.05))
     rf.label = W.label(rf, "", "GameFontHighlightSmall", "LEFT")
     rf.label:SetPoint("TOPLEFT", 6, -5); rf.label:SetWidth(250)
+    rf.label:SetHeight(12)                       -- one line: clip, never wrap onto rf.players
     rf.players = W.label(rf, "", "GameFontDisableSmall", "LEFT")   -- who's seated
     rf.players:SetPoint("BOTTOMLEFT", 6, 5); rf.players:SetWidth(280)
     rf.btn = W.button(rf, "Join"); rf.btn:SetWidth(56); rf.btn:SetHeight(20); rf.btn:SetPoint("RIGHT", -2, 0)
@@ -79,12 +80,26 @@ local function build()
   panel.slash = W.label(panel, "/"); panel.slash:SetPoint("LEFT", panel.sb, "RIGHT", 4, 0)
   panel.bb = W.editbox(panel, 30); panel.bb:SetPoint("LEFT", panel.slash, "RIGHT", 8, 0); panel.bb:SetText("10")
   if panel.bb.SetJustifyH then panel.bb:SetJustifyH("CENTER") end
+  -- Sit & Go: equal stacks, blinds double every few hands, last one standing wins
+  panel.sng = CreateFrame("CheckButton", nil, panel, "UICheckButtonTemplate")
+  panel.sng:SetWidth(18); panel.sng:SetHeight(18)
+  panel.sng:SetPoint("LEFT", panel.bb, "RIGHT", 12, 0)
+  panel.sng._on = false
+  panel.sng:SetScript("OnClick", function()
+    panel.sng._on = not panel.sng._on
+    if panel.sng.SetChecked then panel.sng:SetChecked(panel.sng._on) end
+  end)
+  panel.sngL = W.label(panel, "Sit&Go", "GameFontNormalSmall", "LEFT")
+  panel.sngL:SetPoint("LEFT", panel.sng, "RIGHT", 1, 0)
   panel.create = W.button(panel, "Create Table", function()
     local sb = tonumber(panel.sb:GetText()) or 5
     local bb = tonumber(panel.bb:GetText()) or (sb * 2)
+    if not ns.onSlash then return end
     -- "-" = default name ("<You>'s Table"), so players can identify the host.
     -- The lobby stays open: it is the waiting room until the host starts the game.
-    if ns.onSlash then ns.onSlash(string.format("open - %d %d", sb, bb)) end
+    if panel.sng._on then
+      ns.onSlash(string.format("sng %d %d %d", (ns.db and ns.db.defaultStack) or 1000, sb, bb))
+    else ns.onSlash(string.format("open - %d %d", sb, bb)) end
   end)
   panel.start = W.button(panel, "Start Game", function()
     if ns.onSlash then ns.onSlash("start") end
@@ -132,7 +147,8 @@ local function refresh()
     local rf, t = rows[i], list[i]
     if t then
       rf:Show()
-      rf.label:SetText(string.format("|cffffd966%s|r   %d/%d seats   blinds %s/%s",
+      rf.label:SetText(string.format("%s|cffffd966%s|r   %d/%d seats   blinds %s/%s",
+        t.tourney and "|cff9ad0ff[S&G]|r " or "",
         t.name or t.tableId, t.taken, t.seatMax, W.commas(t.sb), W.commas(t.bb)))
       -- who's at the table: from the ad (fresh) or the last SEAT broadcast we heard
       local names = t.players or (c and c.seats and c.seats[t.tableId])
@@ -153,6 +169,9 @@ local function refresh()
         rf.btn:SetText("Update"); if rf.btn.Disable then rf.btn:Disable() end; rf.btn:Show()
         rf.players:SetText("Different addon version (" .. (t.ver and ("v" .. t.ver) or "older")
           .. " vs your v" .. c.ver .. ") — install the same release.")
+      elseif t.tourney and t.started then
+        -- a running Sit&Go seats nobody new (busting out must mean OUT)
+        rf.btn:SetText("In play"); if rf.btn.Disable then rf.btn:Disable() end; rf.btn:Show()
       elseif full then
         rf.btn:SetText("Full"); if rf.btn.Disable then rf.btn:Disable() end; rf.btn:Show()
       else

@@ -22,6 +22,8 @@ function Lobby:onAd(d)
     players = d.players,                            -- seated names (nil from old hosts)
     ver = d.ver,                                    -- host's addon version (nil from old hosts)
     paused = d.paused,                              -- on a break (no new hands dealt)
+    tourney = d.tourney,                            -- sit&go (equal stacks, rising blinds)
+    started = d.started,                            -- a running sit&go seats nobody new
     lastSeen = self.now,
   }
 end

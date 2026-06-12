@@ -189,6 +189,42 @@ local function joinTable()
 end
 
 -- ---------------------------------------------------------------------------
+-- sit&go announcements + per-character record (SavedVariablesPerCharacter)
+-- ---------------------------------------------------------------------------
+local function ordinal(n)
+  local r = n % 100
+  if r >= 11 and r <= 13 then return n .. "th" end
+  local last = n % 10
+  return n .. (last == 1 and "st" or last == 2 and "nd" or last == 3 and "rd" or "th")
+end
+
+local function recordFinish(place)
+  local t = ns.cdb and ns.cdb.tourney
+  if not t then t = { played = 0, won = 0, places = {} }; if ns.cdb then ns.cdb.tourney = t end end
+  t.played = t.played + 1
+  if place == 1 then t.won = t.won + 1 end
+  t.places[place] = (t.places[place] or 0) + 1
+end
+
+local function onTourney(ev)
+  local me = UnitName("player")
+  -- only record results for a table we are actually at (the wire layer already
+  -- requires sender == tableId; this also keeps OTHER tables' events off our book)
+  local c = ns.casino
+  local atTable = c and (c.seatedAt == ev.tableId or (c.tableHost and c.tableHost.id == ev.tableId))
+  if ev.kind == "level" then
+    Log.info("|cffffd95cBlinds up!|r Level " .. (ev.level or "?") .. ": " ..
+      (ev.sb or "?") .. "/" .. (ev.bb or "?"))
+  elseif ev.kind == "out" then
+    Log.info(tostring(ev.player) .. " finishes " .. ordinal(ev.place or 0) .. ".")
+    if atTable and ev.player == me then recordFinish(ev.place or 0) end
+  elseif ev.kind == "end" then
+    Log.info("|cffffd95c" .. tostring(ev.winner) .. " wins the Sit & Go!|r")
+    if atTable and ev.winner == me then recordFinish(1) end
+  end
+end
+
+-- ---------------------------------------------------------------------------
 -- casino (multi-table) lifecycle
 -- ---------------------------------------------------------------------------
 local function ensureCasino()
@@ -200,6 +236,7 @@ local function ensureCasino()
       entropy = genEntropy, nonces = genNonces,         -- pass the FUNCTIONS (fresh seed per hand)
       defaultStack = (ns.db and ns.db.defaultStack) or 1000, onCheat = onCheat,
       onNotice = function(msg) Log.error(msg) end,   -- join refusals, version mismatches
+      onTourney = onTourney,                         -- sit&go level/elimination/winner lines
       -- comms budget: a host sends ONE small ad per minute; the PING-on-open path
       -- handles instant discovery, so the periodic ad is just a TTL keep-alive.
       adInterval = 60, lobbyTtl = 180, turnTimeout = 60, human = true,
@@ -277,6 +314,28 @@ local handlers = {
       restTicks = 6,                           -- a 6s pause between hands to read the result
     })
     Log.info("Opened a table on the floor — players can /azh sit " .. UnitName("player"))
+  end,
+  -- /azh sng [stack] [sb] [bb] — host a Sit & Go: equal stacks, blinds double
+  -- every few hands, busted players are out, last one standing wins.
+  sng = function(a)
+    ensureCasino():host({
+      name = UnitName("player") .. "'s Sit & Go",
+      sb = tonumber(a[3]) or (ns.db.sb or 5), bb = tonumber(a[4]) or (ns.db.bb or 10),
+      restTicks = 6,
+      tourney = { stack = tonumber(a[2]) or (ns.db.defaultStack or 1000), handsPerLevel = 8 },
+    })
+    Log.info("Sit & Go opened — players /azh sit " .. UnitName("player")
+      .. ", then Start Game locks the field and deals.")
+  end,
+  record = function()
+    local t = ns.cdb and ns.cdb.tourney
+    if not t or t.played == 0 then return Log.info("No Sit & Go results yet — host one with /azh sng!") end
+    Log.info(string.format("Sit & Go record: %d played, %d won.", t.played, t.won))
+    local parts = {}
+    for place = 1, 9 do
+      if t.places[place] then parts[#parts + 1] = ordinal(place) .. " x" .. t.places[place] end
+    end
+    if #parts > 0 then Log.info("  finishes: " .. table.concat(parts, ", ")) end
   end,
   sit = function(a)
     if not a[2] then return Log.error("/azh sit <dealer name>") end
@@ -468,6 +527,8 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4)
   if event == "ADDON_LOADED" and arg1 == ADDON then
     AzerothHoldemDB = AzerothHoldemDB or { sb = 5, bb = 10, defaultStack = 1000 }
     ns.db = AzerothHoldemDB
+    AzerothHoldemCharDB = AzerothHoldemCharDB or {}
+    ns.cdb = AzerothHoldemCharDB
   elseif event == "PLAYER_LOGIN" then
     ensureComm()
     SLASH_AZEROTHHOLDEM1 = "/azh"

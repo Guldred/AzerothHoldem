@@ -468,8 +468,10 @@ function ns.UI.viewOf(s)
     end
     local bc = s.dealer.variant.boardSchedule[s.revealedStreet] or 0
     v.board = s.dealer:boardCards(bc)
-    local hr = s.dealer:holeReveal(s.me)
-    for i = 1, #hr do v.hole[i] = hr[i].val end
+    if s.playing ~= false then                     -- an eliminated dealer has no cards
+      local hr = s.dealer:holeReveal(s.me)
+      for i = 1, #hr do v.hole[i] = hr[i].val end
+    end
     v.deltas, v.showdown = s.deltas, s.showdown    -- end-of-hand result (phase "done")
     if r.toAct and not r.complete then             -- live countdown (host has exact ticks)
       v.turnLeft = math.max(0, (s.turnTimeout or 0) - (s.turnTicks or 0))

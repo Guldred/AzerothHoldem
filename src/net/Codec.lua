@@ -85,7 +85,7 @@ ENC[OP.BET_TURN] = function(d)
     { list = stacks }, { list = bets } })
 end
 ENC[OP.REFUSE] = function(d)
-  return Protocol.encode(OP.REFUSE, { d.handNo, d.actionNo or 0, d.reason or "" })
+  return Protocol.encode(OP.REFUSE, { d.handNo, d.actionNo or 0, d.reason or "", d.table or "" })
 end
 ENC[OP.PING] = function(d) return Protocol.encode(OP.PING, { d.kind or "lobby" }) end
 ENC[OP.INTENT] = function(d)
@@ -120,7 +120,14 @@ end
 ENC[OP.TABLE] = function(d)
   return Protocol.encode(OP.TABLE, { d.tableId, d.name or "", d.sb, d.bb, d.variant or "texas",
     d.taken or 0, d.seatMax or 9, d.open and 1 or 0, { list = d.players or {} }, d.ver or "",
-    d.paused and 1 or 0 })
+    d.paused and 1 or 0, d.tourney and 1 or 0, d.started and 1 or 0 })
+end
+-- TOURNEY (tag-0 control): sit&go progress everyone should see.
+--   kind = "level" (blinds up: level/sb/bb) | "out" (player finished `place`th)
+--        | "end" (winner takes it down)
+ENC[OP.TOURNEY] = function(d)
+  return Protocol.encode(OP.TOURNEY, { d.tableId, d.kind, d.player or "", d.place or 0,
+    d.level or 0, d.sb or 0, d.bb or 0, d.winner or "" })
 end
 ENC[OP.JOIN] = function(d) return Protocol.encode(OP.JOIN, { d.table, d.seat or "", d.ver or "" }) end
 ENC[OP.SEAT] = function(d)
@@ -196,7 +203,9 @@ DEC[OP.BET_TURN] = function(f)
   return d
 end
 DEC[OP.REFUSE] = function(f)
-  return { handNo = tn(leaf(f[1])), actionNo = tn(leaf(f[2])), reason = leaf(f[3]) }
+  local t = f[4] and leaf(f[4]) or ""
+  return { handNo = tn(leaf(f[1])), actionNo = tn(leaf(f[2])), reason = leaf(f[3]),
+    table = t ~= "" and t or nil }
 end
 DEC[OP.PING] = function(f) return { kind = leaf(f[1]) } end
 DEC[OP.INTENT] = function(f)
@@ -242,7 +251,16 @@ DEC[OP.TABLE] = function(f)
   if f[9] then d.players = list(f[9]) end        -- appended seated-player names (older hosts omit)
   if f[10] then local v = leaf(f[10]); if v ~= "" then d.ver = v end end   -- host's addon version
   if f[11] then d.paused = leaf(f[11]) == "1" end                          -- break status
+  if f[12] then d.tourney = leaf(f[12]) == "1" end                         -- sit&go table
+  if f[13] then d.started = leaf(f[13]) == "1" end                         -- locked once running
   return d
+end
+DEC[OP.TOURNEY] = function(f)
+  local pl, wn = leaf(f[3]), leaf(f[8])
+  return { tableId = leaf(f[1]), kind = leaf(f[2]),
+    player = pl ~= "" and pl or nil, place = tn(leaf(f[4])),
+    level = tn(leaf(f[5])), sb = tn(leaf(f[6])), bb = tn(leaf(f[7])),
+    winner = wn ~= "" and wn or nil }
 end
 DEC[OP.JOIN] = function(f)
   local s = leaf(f[2])

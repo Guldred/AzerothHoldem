@@ -63,6 +63,14 @@ local function canonical(seats)
   return c
 end
 local function count(t) local n = 0 for _ in pairs(t) do n = n + 1 end return n end
+-- count only contributions from actual hand members: the DEALER may run a hand it
+-- is not seated in (busted host in a tournament/cash game keeps dealing) — its own
+-- entries must never satisfy a collect-all barrier in a member's place
+local function countSeats(t, seats)
+  local n = 0
+  for i = 1, #seats do if t[seats[i]] ~= nil then n = n + 1 end end
+  return n
+end
 
 function Host:_bcast(op, data) self.tp:post(Codec.encode(op, data), self.broadcast, nil) end
 
@@ -80,17 +88,27 @@ end
 
 function Host:start()
   self.order = canonical(self.seats)
+  self.playing = false                              -- the dealer may be eliminated and
+  for i = 1, #self.seats do                         -- still run the table: it then has
+    if self.seats[i] == self.me then self.playing = true break end
+  end                                               -- no seat, no cards, no seed share
   self:_bcast(OP.HANDSTART, {
     handNo = self.handNo, button = self.cfg.buttonSeat, sb = self.cfg.sb,
     bb = self.cfg.bb, ante = self.cfg.ante or 0, seats = self.seats,
     stacks = self.cfg.stacks,                       -- chip counts for everyone's display
   })
   self:_bcast(OP.COMMITSEED, { handNo = self.handNo })
-  local r, salt = self.cfg.entropy.r, self.cfg.entropy.salt
-  self.myR, self.mySalt = r, salt
-  self.commits[self.me] = Commit.seedCommit(r, salt)
-  self.reveals[self.me] = { r = r, salt = salt }
-  self:_bcast(OP.SEEDCMT, { handNo = self.handNo, seat = self.me, commit = self.commits[self.me] })
+  if self.playing then
+    -- the joint seed is built from the CARD-HOLDING players' secrets; a non-seated
+    -- dealer contributes none (it cannot steer S — and it holds no cards to steer
+    -- toward; the deck commitment still binds it to the shuffle it deals)
+    local r, salt = self.cfg.entropy.r, self.cfg.entropy.salt
+    self.myR, self.mySalt = r, salt
+    self.commits[self.me] = Commit.seedCommit(r, salt)
+    self.reveals[self.me] = { r = r, salt = salt }
+    self:_bcast(OP.SEEDCMT, { handNo = self.handNo, seat = self.me, commit = self.commits[self.me] })
+  end
+  self:_advance()       -- heads-up vs a non-seated dealer: members may already be complete
 end
 
 function Host:onMessage(sender, payload, channel)
@@ -137,13 +155,15 @@ end
 
 function Host:_advance()
   local n = #self.seats
-  if not self.sentReveal and count(self.commits) >= n then
+  if not self.sentReveal and countSeats(self.commits, self.seats) >= n then
     self.sentReveal = true
     self.phase = PHASE.REVEAL
-    self:_bcast(OP.SEEDREVEAL, { handNo = self.handNo, seat = self.me, r = self.myR, salt = self.mySalt })
+    if self.playing then
+      self:_bcast(OP.SEEDREVEAL, { handNo = self.handNo, seat = self.me, r = self.myR, salt = self.mySalt })
+    end
   end
 
-  if not self.S and self.sentReveal and count(self.reveals) >= n then
+  if not self.S and self.sentReveal and countSeats(self.reveals, self.seats) >= n then
     local rList = {}
     for i = 1, #self.order do
       local rv = self.reveals[self.order[i]]
@@ -165,7 +185,7 @@ function Host:_advance()
     self:_bcast(OP.STATEHASH, { handNo = self.handNo, seat = self.me, H = H })
   end
 
-  if self.S and self.phase == PHASE.STATEHASH and count(self.stateHashes) >= n then
+  if self.S and self.phase == PHASE.STATEHASH and countSeats(self.stateHashes, self.seats) >= n then
     self:_deal()
     self:_startBetting()
   end

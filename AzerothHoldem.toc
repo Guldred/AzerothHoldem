@@ -2,7 +2,7 @@
 ## Title: Azeroth Hold'em
 ## Notes: Peer-verifiable Texas Hold'em with cryptographic anti-cheat (Tier 1)
 ## Author: Guldred & Fable
-## Version: 1.1.0
+## Version: 1.2.0
 ## SavedVariables: AzerothHoldemDB
 ## SavedVariablesPerCharacter: AzerothHoldemCharDB
 

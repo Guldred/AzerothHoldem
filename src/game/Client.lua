@@ -63,6 +63,14 @@ local function canonical(seats)
   return c
 end
 local function count(t) local n = 0 for _ in pairs(t) do n = n + 1 end return n end
+-- count only contributions from actual hand members: the DEALER may run a hand it
+-- is not seated in (busted host keeps dealing) — its statehash still matters for
+-- the equivocation cross-check, but it must never fill a member's barrier slot
+local function countSeats(t, seats)
+  local n = 0
+  for i = 1, #seats do if t[seats[i]] ~= nil then n = n + 1 end end
+  return n
+end
 
 function Client:_abort(code, detail)
   if self.aborted then return end
@@ -161,6 +169,7 @@ function Client:onMessage(sender, payload, channel)
     self.seats = d.seats
     self.order = canonical(d.seats)
     self.stacks = d.stacks                       -- chip counts (display; nil from old hosts)
+    self.sb, self.bb = d.sb, d.bb                -- current blinds (display; tourneys escalate)
     self.pot = 0
     self.hostName = sender
     self.phase = PHASE.COMMIT
@@ -299,6 +308,7 @@ function Client:_bootstrap(d, sender)
   self.S = d.S
   self.commits = d.commits           -- host-provided seedCommits (reduced trust this hand)
   self.currentBet, self.minRaise = d.currentBet, d.minRaise
+  self.sb, self.bb = d.sb, d.bb                -- current blinds (sit&go levels escalate)
   self.mySeatInfo = d.seatInfo[self.me]
   self.stacks, self.pot = {}, 0      -- rebuild the money display from the snapshot
   for seat, si in pairs(d.seatInfo) do
@@ -338,13 +348,13 @@ function Client:_advance()
   if self.aborted or not self.seats or self.resumed then return end
   local nSeats = #self.seats
 
-  if not self.sentReveal and count(self.commits) >= nSeats then
+  if not self.sentReveal and countSeats(self.commits, self.seats) >= nSeats then
     self.sentReveal = true
     self.phase = PHASE.REVEAL
     self:_bcast(OP.SEEDREVEAL, { handNo = self.handNo, seat = self.me, r = self.myR, salt = self.mySalt })
   end
 
-  if not self.S and self.sentReveal and count(self.reveals) >= nSeats then
+  if not self.S and self.sentReveal and countSeats(self.reveals, self.seats) >= nSeats then
     local rList = {}
     for i = 1, #self.order do
       local rv = self.reveals[self.order[i]]
@@ -369,7 +379,11 @@ function Client:_advance()
         return self:_abort(Verify.CODE.STATE, "STATEHASH mismatch with " .. seat .. " (host equivocation)")
       end
     end
-    if count(self.stateHashes) >= nSeats then
+    -- gate: every MEMBER's hash, plus the DEALER's (it computed the deck — its
+    -- hash is the one an equivocation check is about; when the dealer is seated
+    -- the member count covers it already)
+    if countSeats(self.stateHashes, self.seats) >= nSeats
+        and (not self.hostName or self.stateHashes[self.hostName] ~= nil) then
       self.phase = PHASE.DEAL
       self:_tryVerifyHole()
     end
