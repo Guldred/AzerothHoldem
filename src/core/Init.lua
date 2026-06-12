@@ -401,6 +401,30 @@ local handlers = {
     if ns.casino then ns.casino:unspectate() end
     Log.info("Stopped watching.")
   end,
+  -- /azh lang en|de|ru — fix the language; "auto" follows the game client;
+  -- "next" (the lobby button) cycles. Persisted per account, applied instantly.
+  lang = function(a)
+    local arg = (a[2] or "next"):lower()
+    local order = { "enUS", "deDE", "ruRU" }
+    local target
+    if arg == "auto" then target = nil
+    elseif arg == "en" then target = "enUS"
+    elseif arg == "de" then target = "deDE"
+    elseif arg == "ru" then target = "ruRU"
+    elseif arg == "next" then
+      local cur = ns.db.locale or ns.clientLocale()
+      local idx = 1
+      for i, c in ipairs(order) do if c == cur then idx = i end end
+      target = order[(idx % #order) + 1]
+    else
+      return Log.info("/azh lang en | de | ru | auto (current: "
+        .. (ns.db.locale or (ns.clientLocale() .. " — auto")) .. ")")
+    end
+    ns.db.locale = target
+    ns.applyLocale(target or ns.clientLocale())
+    if ns.UI and ns.UI.relabel then ns.UI.relabel() end
+    Log.info("Language: " .. (target or (ns.clientLocale() .. " (auto)")))
+  end,
   scale = function(a)
     local s = tonumber(a[2])
     if not s or s < 0.5 or s > 2 then return Log.info("/azh scale 0.5 – 2.0 (current " .. tostring(ns.db.uiScale or 1) .. ")") end
@@ -563,6 +587,10 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4)
     ns.cdb = AzerothHoldemCharDB
     ns.cdb.stats = ns.cdb.stats or {}
     ns.stats = ns.Stats.new(ns.cdb.stats)
+    if ns.db.locale then                 -- a saved language override beats the client's
+      ns.applyLocale(ns.db.locale)
+      if ns.UI and ns.UI.relabel then ns.UI.relabel() end
+    end
   elseif event == "PLAYER_LOGIN" then
     ensureComm()
     SLASH_AZEROTHHOLDEM1 = "/azh"

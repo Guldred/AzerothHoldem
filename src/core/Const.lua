@@ -12,7 +12,7 @@ local Const = {}
 -- v2: BET_TURN carries the raise-TO range, REFUSE/PING ops, host re-prompts on an
 --     illegal intent (a v1 host deadlocks a raising client — do not mix).
 Const.PROTO_VER = 2
-Const.ADDON_VER = "1.5.0"
+Const.ADDON_VER = "1.6.0"
 
 -- Addon-message prefix. 4 bytes, leaving 254 - 4 = 250 usable text bytes/message.
 Const.PREFIX = "AzHE"

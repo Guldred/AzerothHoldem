@@ -23,24 +23,27 @@ local function buildReport()
   report.hand   = line(-32, "", "GameFontNormal")
   report.checks = {}
   local items = {
-    { key = "seed",  label = L["Shuffle seed sealed by ALL players' secrets"] },
-    { key = "deck",  label = L["All 52 cards locked (hashed) before any betting"] },
-    { key = "same",  label = L["Every player saw the SAME deck (cross-check)"] },
-    { key = "cards", label = L["Each revealed card matched its sealed hash"] },
-    { key = "audit", label = L["Full deck re-derived & audited at hand end"] },
+    { key = "seed",  label = "Shuffle seed sealed by ALL players' secrets" },
+    { key = "deck",  label = "All 52 cards locked (hashed) before any betting" },
+    { key = "same",  label = "Every player saw the SAME deck (cross-check)" },
+    { key = "cards", label = "Each revealed card matched its sealed hash" },
+    { key = "audit", label = "Full deck re-derived & audited at hand end" },
   }
   for i, it in ipairs(items) do
     local r = {}
     r.icon = W.tex(report, "ARTWORK", W.ICON.waiting)
     r.icon:SetWidth(14); r.icon:SetHeight(14); r.icon:SetPoint("TOPLEFT", 16, -56 - (i - 1) * 22)
-    r.label = W.label(report, it.label, "GameFontHighlightSmall", "LEFT")
+    r.label = W.label(report, "", "GameFontHighlightSmall", "LEFT")
     r.label:SetPoint("LEFT", r.icon, "RIGHT", 6, 0); r.label:SetWidth(310)
     report.checks[it.key] = r
   end
   report.tally = line(-176, "", "GameFontNormalSmall")
-  report.foot = line(-200,
-    L["No one — the dealer included — can know or change the order of the cards. Any tampering trips an instant CHEAT alert for everyone at the table."],
-    "GameFontDisableSmall")
+  report.foot = line(-200, "", "GameFontDisableSmall")
+  ns.UI.onRelabel(function()                       -- language switch: static labels
+    if report.titleText then report.titleText:SetText(L["Fairness Report"]) end
+    for _, it in ipairs(items) do report.checks[it.key].label:SetText(L[it.label]) end
+    report.foot:SetText(L["No one — the dealer included — can know or change the order of the cards. Any tampering trips an instant CHEAT alert for everyone at the table."])
+  end)
   report:Hide()
   ns.UI.fairnessPanel = report
 end

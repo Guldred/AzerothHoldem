@@ -114,6 +114,28 @@ local function build()
   panel.hint = W.label(panel, L["Tables deal automatically once 2+ players sit."], "GameFontDisableSmall")
   panel.hint:SetPoint("BOTTOMLEFT", 14, 16)
 
+  -- language: defaults to the game client's, one click cycles EN -> DE -> RU
+  -- (persisted per account; /azh lang auto returns to the client language)
+  panel.lang = W.button(panel, "", function()
+    if ns.onSlash then ns.onSlash("lang next") end
+  end)
+  panel.lang:SetWidth(34); panel.lang:SetHeight(18)
+  panel.lang:SetPoint("TOPRIGHT", -28, -5)        -- in the title bar, left of the X
+
+  -- static labels, re-applied whenever the language changes
+  ns.UI.onRelabel(function()
+    panel.modeL:SetText(L["Play with:"])
+    panel.listHead:SetText(L["Tables"])
+    panel.refresh:SetText(L["Refresh"])
+    panel.stats:SetText(L["Stats"])
+    panel.leave:SetText(L["Leave Table"])
+    panel.closeT:SetText(L["Close Table"])
+    panel.createL:SetText(L["Create a table — blinds:"])
+    panel.create:SetText(L["Create Table"])
+    panel.hint:SetText(L["Tables deal automatically once 2+ players sit."])
+    panel.lang:SetText(ns.localeShort and ns.localeShort() or "EN")
+  end)
+
   panel:Hide()
   ns.UI.lobbyPanel = panel
 end

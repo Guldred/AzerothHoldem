@@ -101,6 +101,11 @@ local function build()
   bar._setPre = setPre
 
   bar._buttons = { bar.fold, bar.check, bar.call, bar.raise, bar.qMin, bar.qPot, bar.qMax }
+  ns.UI.onRelabel(function()                       -- language switch: static labels
+    bar.fold:SetText(L["Fold"]); bar.check:SetText(L["Check"])
+    bar.qMin:SetText(L["Min"]); bar.qPot:SetText(L["Pot"]); bar.qMax:SetText(L["All-in"])
+    bar.preCF.label:SetText(L["Check/Fold"]); bar.preCall.label:SetText(L["Call any"])
+  end)
   ns.UI.actionBar = bar
 end
 

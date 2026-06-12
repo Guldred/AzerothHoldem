@@ -432,6 +432,13 @@ ns.W = W
 -- ---- aggregator -----------------------------------------------------------
 ns.UI = ns.UI or { panels = {} }
 function ns.UI.register(fn) ns.UI.panels[#ns.UI.panels + 1] = fn end
+-- static labels (set once at build) re-apply here when the language changes;
+-- everything painted in a refresh() picks the new language up automatically
+ns.UI.relabelFns = ns.UI.relabelFns or {}
+function ns.UI.onRelabel(fn) ns.UI.relabelFns[#ns.UI.relabelFns + 1] = fn; fn() end
+function ns.UI.relabel()
+  for i = 1, #ns.UI.relabelFns do pcall(ns.UI.relabelFns[i]) end
+end
 function ns.UI.refresh(session)
   local view = ns.UI.viewOf(session)
   for i = 1, #ns.UI.panels do

@@ -194,14 +194,25 @@ local ORDINAL = {
   ruRU = function(n) return tostring(n) end,
 }
 
--- apply a locale's dictionary (testable seam; called once below with GetLocale)
+-- apply a locale's dictionary (testable seam; called below with the client
+-- locale, and again from Init when the player saved an override or switches)
 function ns.applyLocale(loc)
   for k in pairs(L) do L[k] = nil end
   local d = DICT[loc]
   if d then for k, v in pairs(d) do L[k] = v end end
   ns.ordinalFn = ORDINAL[loc]
+  ns.localeCode = loc
 end
 
-ns.applyLocale((type(GetLocale) == "function" and GetLocale()) or "enUS")
+function ns.clientLocale()
+  return (type(GetLocale) == "function" and GetLocale()) or "enUS"
+end
+
+-- the language button's label ("EN"/"DE"/"RU")
+function ns.localeShort()
+  return ns.localeCode == "deDE" and "DE" or ns.localeCode == "ruRU" and "RU" or "EN"
+end
+
+ns.applyLocale(ns.clientLocale())   -- a saved override re-applies at ADDON_LOADED
 
 return L

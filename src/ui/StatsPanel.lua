@@ -39,6 +39,11 @@ local function build()
     rows[i] = r
   end
 
+  ns.UI.onRelabel(function()                       -- language switch: static labels
+    if panel.titleText then panel.titleText:SetText(L["Your Poker Record"]) end
+    panel.achHead:SetText(L["Achievements"])
+  end)
+
   panel:Hide()
   ns.UI.statsPanel = panel
 end
