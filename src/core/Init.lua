@@ -11,6 +11,7 @@
 
 local ADDON, ns = ...
 local Log = ns.Log
+local function LL(k) return (ns.L and ns.L[k]) or k end
 
 -- ---------------------------------------------------------------------------
 -- entropy (best-effort; 3.3.5 math.random is weak, so mix several sources)
@@ -202,7 +203,7 @@ end
 local function announce(unlocked)
   if not unlocked then return end
   for _, a in ipairs(unlocked) do
-    Log.info("|cffffd95cAchievement unlocked: " .. a.name .. "|r — " .. a.desc)
+    Log.info("|cffffd95c" .. LL("Achievement unlocked: %s"):format(a.name) .. "|r — " .. a.desc)
     if type(PlaySound) == "function" then PlaySound("LEVELUPSOUND") end
   end
 end
@@ -222,16 +223,17 @@ local function onTourney(ev)
   local c = ns.casino
   local atTable = c and (c.seatedAt == ev.tableId or (c.tableHost and c.tableHost.id == ev.tableId))
   if ev.kind == "level" then
-    Log.info("|cffffd95cBlinds up!|r Level " .. (ev.level or "?") .. ": " ..
-      (ev.sb or "?") .. "/" .. (ev.bb or "?"))
+    Log.info("|cffffd95c" .. LL("Blinds up! Level %s: %s/%s"):format(
+      tostring(ev.level or "?"), tostring(ev.sb or "?"), tostring(ev.bb or "?")) .. "|r")
   elseif ev.kind == "out" then
-    Log.info(tostring(ev.player) .. " finishes " .. ordinal(ev.place or 0) .. ".")
+    local placeText = (ns.ordinalFn and ns.ordinalFn(ev.place or 0)) or ordinal(ev.place or 0)
+    Log.info(LL("%s finishes %s."):format(tostring(ev.player), placeText))
     if atTable and ev.player == me then
       recordFinish(ev.place or 0)
       if ns.stats then announce(ns.stats:onTourneyFinish(ev.place or 0)) end
     end
   elseif ev.kind == "end" then
-    Log.info("|cffffd95c" .. tostring(ev.winner) .. " wins the Sit & Go!|r")
+    Log.info("|cffffd95c" .. LL("%s wins the Sit & Go!"):format(tostring(ev.winner)) .. "|r")
     if atTable and ev.winner == me then
       recordFinish(1)
       if ns.stats then announce(ns.stats:onTourneyFinish(1)) end
@@ -572,7 +574,7 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4)
       end
     end
     makeMinimapButton()
-    Log.info("loaded — type /azh to open the casino.")
+    Log.info(LL("loaded — type /azh to open the casino."))
   elseif event == "CHAT_MSG_ADDON" then
     -- arg1=prefix, arg2=message, arg3=channel, arg4=sender. No RegisterAddonMessagePrefix
     -- in 3.3.5, so we filter by our own prefix here.

@@ -6,13 +6,14 @@
 
 local ADDON, ns = ...
 local W = ns.W
+local L = ns.L
 local function rgba(t, a) return t[1], t[2], t[3], a or t[4] or 1 end
 
 local cluster, banner, report
 
 -- ---- the Fairness Report: WHY this game can't cheat, per hand, in plain words --
 local function buildReport()
-  report = W.panel(UIParent, 360, 290, "Fairness Report", true)
+  report = W.panel(UIParent, 360, 290, L["Fairness Report"], true)
   report:SetPoint("CENTER", -250, 60)
   local function line(y, text, font)
     local fs = W.label(report, text, font or "GameFontHighlightSmall", "LEFT")
@@ -22,11 +23,11 @@ local function buildReport()
   report.hand   = line(-32, "", "GameFontNormal")
   report.checks = {}
   local items = {
-    { key = "seed",  label = "Shuffle seed sealed by ALL players' secrets" },
-    { key = "deck",  label = "All 52 cards locked (hashed) before any betting" },
-    { key = "same",  label = "Every player saw the SAME deck (cross-check)" },
-    { key = "cards", label = "Each revealed card matched its sealed hash" },
-    { key = "audit", label = "Full deck re-derived & audited at hand end" },
+    { key = "seed",  label = L["Shuffle seed sealed by ALL players' secrets"] },
+    { key = "deck",  label = L["All 52 cards locked (hashed) before any betting"] },
+    { key = "same",  label = L["Every player saw the SAME deck (cross-check)"] },
+    { key = "cards", label = L["Each revealed card matched its sealed hash"] },
+    { key = "audit", label = L["Full deck re-derived & audited at hand end"] },
   }
   for i, it in ipairs(items) do
     local r = {}
@@ -38,8 +39,7 @@ local function buildReport()
   end
   report.tally = line(-176, "", "GameFontNormalSmall")
   report.foot = line(-200,
-    "No one — the dealer included — can know or change the order of the cards. " ..
-    "Any tampering trips an instant CHEAT alert for everyone at the table.",
+    L["No one — the dealer included — can know or change the order of the cards. Any tampering trips an instant CHEAT alert for everyone at the table."],
     "GameFontDisableSmall")
   report:Hide()
   ns.UI.fairnessPanel = report
@@ -75,11 +75,11 @@ function ns.UI.showFairness()
     if not v.isHost and v.resumed then
       report.tally:SetText("Rejoined mid-hand — reduced checks this hand; full checks resume next hand.")
     else
-      report.tally:SetText(n and ("Hands fully verified this session: " .. n)
-        or (v.isHost and "Clients verify every hand you deal." or "Verification runs during each hand."))
+      report.tally:SetText(n and L["Hands fully verified this session: %d"]:format(n)
+        or (v.isHost and L["Clients verify every hand you deal."] or L["Verification runs during each hand."]))
     end
   else
-    report.hand:SetText("No hand in progress — play one and check back!")
+    report.hand:SetText(L["No hand in progress — play one and check back!"])
     for k in pairs(report.checks) do setCheck(k, nil) end
     report.tally:SetText("")
   end
@@ -122,23 +122,23 @@ local function refresh(v)
   if report and report.IsShown and report:IsShown() then ns.UI.showFairness() end
   if not v then banner:SetText(""); return end
   if v.aborted then
-    setState(W.ICON.notready, "fair play: FAILED")
+    setState(W.ICON.notready, L["fair play: FAILED"])
     banner:SetText("|cffff2222>>> CHEAT: " .. (v.cheat and v.cheat.code or "?") .. " <<<|r")
     return
   end
   banner:SetText("")
-  if v.auditPassed then setState(W.ICON.ready, "fair play: hand verified")
-  elseif v.unverified then setState(W.ICON.waiting, "fair play: couldn't verify this hand (missed a broadcast)")
+  if v.auditPassed then setState(W.ICON.ready, L["fair play: hand verified"])
+  elseif v.unverified then setState(W.ICON.waiting, L["fair play: couldn't verify this hand (missed a broadcast)"])
   elseif v.holeVerified or (v.spectating and v.boardVerified) then
-    setState(W.ICON.ready, "fair play: cards verified")
-  elseif v.sealed then setState(W.ICON.waiting, "fair play: deck sealed, verifying…")
-  else setState(W.ICON.waiting, "fair play: preparing…") end
+    setState(W.ICON.ready, L["fair play: cards verified"])
+  elseif v.sealed then setState(W.ICON.waiting, L["fair play: deck sealed, verifying…"])
+  else setState(W.ICON.waiting, L["fair play: preparing…"]) end
 end
 
 -- fired straight from the cheat callback (independent of the refresh loop)
 function ns.UI.showCheat(code, detail)
   if not cluster then return end
-  setState(W.ICON.notready, "fair play: FAILED")
+  setState(W.ICON.notready, L["fair play: FAILED"])
   if banner then banner:SetText("|cffff2222>>> CHEAT: " .. tostring(code) .. " <<<|r") end
 end
 

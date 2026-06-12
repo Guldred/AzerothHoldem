@@ -7,6 +7,7 @@
 
 local ADDON, ns = ...
 local W = ns.W
+local L = ns.L
 local COL = W.COL
 local function rgba(t, a) return t[1], t[2], t[3], a or t[4] or 1 end
 
@@ -27,23 +28,23 @@ local function build()
   panel:SetPoint("CENTER", 330, 0)    -- clear of the table window (560 wide at CENTER)
 
   -- who you play with
-  panel.modeL = W.label(panel, "Play with:", "GameFontNormal")
+  panel.modeL = W.label(panel, L["Play with:"], "GameFontNormal")
   panel.modeL:SetPoint("TOPLEFT", 14, -32)
-  panel.modeGuild = W.button(panel, "Guild", function() setMode("GUILD") end)
+  panel.modeGuild = W.button(panel, L["Guild"], function() setMode("GUILD") end)
   panel.modeGuild:SetWidth(74); panel.modeGuild:SetPoint("LEFT", panel.modeL, "RIGHT", 10, 0)
-  panel.modeGroup = W.button(panel, "Group", function() setMode("GROUP") end)
+  panel.modeGroup = W.button(panel, L["Group"], function() setMode("GROUP") end)
   panel.modeGroup:SetWidth(74); panel.modeGroup:SetPoint("LEFT", panel.modeGuild, "RIGHT", 6, 0)
-  panel.refresh = W.button(panel, "Refresh", function()
+  panel.refresh = W.button(panel, L["Refresh"], function()
     if casino() then casino():announce() end          -- cooldown-limited PING
   end)
   panel.refresh:SetWidth(56); panel.refresh:SetPoint("TOPRIGHT", -12, -32)
-  panel.stats = W.button(panel, "Stats", function()
+  panel.stats = W.button(panel, L["Stats"], function()
     if ns.UI.showStats then ns.UI.showStats() end
   end)
   panel.stats:SetWidth(50); panel.stats:SetPoint("TOPRIGHT", -70, -32)
 
   -- the table list
-  panel.listHead = W.label(panel, "Tables", "GameFontNormal")
+  panel.listHead = W.label(panel, L["Tables"], "GameFontNormal")
   panel.listHead:SetPoint("TOPLEFT", 14, -64)
   rows = {}
   for i = 1, ROWS do
@@ -56,7 +57,7 @@ local function build()
     rf.label:SetHeight(12)                       -- one line: clip, never wrap onto rf.players
     rf.players = W.label(rf, "", "GameFontDisableSmall", "LEFT")   -- who's seated
     rf.players:SetPoint("BOTTOMLEFT", 6, 5); rf.players:SetWidth(280)
-    rf.btn = W.button(rf, "Join"); rf.btn:SetWidth(56); rf.btn:SetHeight(20); rf.btn:SetPoint("RIGHT", -2, 0)
+    rf.btn = W.button(rf, L["Join"]); rf.btn:SetWidth(56); rf.btn:SetHeight(20); rf.btn:SetPoint("RIGHT", -2, 0)
     rf:Hide()
     rows[i] = rf
   end
@@ -71,13 +72,13 @@ local function build()
   panel.status:SetPoint("BOTTOMLEFT", 14, 96)
   panel.status:SetWidth(352); panel.status:SetHeight(13)
   panel.status:SetTextColor(rgba(COL.gold))
-  panel.leave = W.button(panel, "Leave Table", function() if ns.onSlash then ns.onSlash("stand") end end)
+  panel.leave = W.button(panel, L["Leave Table"], function() if ns.onSlash then ns.onSlash("stand") end end)
   panel.leave:SetWidth(100); panel.leave:SetPoint("BOTTOMRIGHT", -12, 70); panel.leave:Hide()
-  panel.closeT = W.button(panel, "Close Table", function() if ns.onSlash then ns.onSlash("close") end end)
+  panel.closeT = W.button(panel, L["Close Table"], function() if ns.onSlash then ns.onSlash("close") end end)
   panel.closeT:SetWidth(100); panel.closeT:SetPoint("BOTTOMRIGHT", -12, 70); panel.closeT:Hide()
 
   -- create your own
-  panel.createL = W.label(panel, "Create a table — blinds:", "GameFontNormal")
+  panel.createL = W.label(panel, L["Create a table — blinds:"], "GameFontNormal")
   panel.createL:SetPoint("BOTTOMLEFT", 14, 42)
   panel.sb = W.editbox(panel, 30); panel.sb:SetPoint("LEFT", panel.createL, "RIGHT", 10, 0); panel.sb:SetText("5")
   if panel.sb.SetJustifyH then panel.sb:SetJustifyH("CENTER") end
@@ -95,7 +96,7 @@ local function build()
   end)
   panel.sngL = W.label(panel, "Sit&Go", "GameFontNormalSmall", "LEFT")
   panel.sngL:SetPoint("LEFT", panel.sng, "RIGHT", 1, 0)
-  panel.create = W.button(panel, "Create Table", function()
+  panel.create = W.button(panel, L["Create Table"], function()
     local sb = tonumber(panel.sb:GetText()) or 5
     local bb = tonumber(panel.bb:GetText()) or (sb * 2)
     if not ns.onSlash then return end
@@ -105,12 +106,12 @@ local function build()
       ns.onSlash(string.format("sng %d %d %d", (ns.db and ns.db.defaultStack) or 1000, sb, bb))
     else ns.onSlash(string.format("open - %d %d", sb, bb)) end
   end)
-  panel.start = W.button(panel, "Start Game", function()
+  panel.start = W.button(panel, L["Start Game"], function()
     if ns.onSlash then ns.onSlash("start") end
   end)
   panel.start:SetWidth(100); panel.start:SetPoint("BOTTOMRIGHT", -120, 70); panel.start:Hide()
   panel.create:SetWidth(110); panel.create:SetPoint("BOTTOMRIGHT", -12, 12)
-  panel.hint = W.label(panel, "Tables deal automatically once 2+ players sit.", "GameFontDisableSmall")
+  panel.hint = W.label(panel, L["Tables deal automatically once 2+ players sit."], "GameFontDisableSmall")
   panel.hint:SetPoint("BOTTOMLEFT", 14, 16)
 
   panel:Hide()
@@ -135,8 +136,8 @@ local function refresh()
 
   -- the active mode's button is "pressed" (disabled); the other is clickable
   if panel.modeGuild.SetText then
-    panel.modeGuild:SetText(mode == "GUILD" and "[ Guild ]" or "Guild")
-    panel.modeGroup:SetText(mode == "GROUP" and "[ Group ]" or "Group")
+    panel.modeGuild:SetText(mode == "GUILD" and ("[ " .. L["Guild"] .. " ]") or L["Guild"])
+    panel.modeGroup:SetText(mode == "GROUP" and ("[ " .. L["Group"] .. " ]") or L["Group"])
   end
   if panel.modeGuild.Enable then
     if mode == "GUILD" then panel.modeGuild:Disable(); panel.modeGroup:Enable()
@@ -145,7 +146,7 @@ local function refresh()
 
   -- table list
   local list = (c and c:tables()) or {}
-  panel.empty:SetText(#list == 0 and "No tables found — create one below, or Refresh." or "")
+  panel.empty:SetText(#list == 0 and L["No tables found — create one below, or Refresh."] or "")
   local mySeat, hosting = c and c.seatedAt, c and c.tableHost ~= nil
   for i = 1, ROWS do
     local rf, t = rows[i], list[i]
@@ -161,24 +162,24 @@ local function refresh()
         for k = 1, math.min(#names, 4) do shown[k] = names[k] end
         local line = table.concat(shown, ", ")
         if #names > 4 then line = line .. " +" .. (#names - 4) end
-        rf.players:SetText("Playing: " .. line)
+        rf.players:SetText(L["Playing: "] .. line)
       else
-        rf.players:SetText("Host: " .. t.tableId)
+        rf.players:SetText(L["Host: %s"]:format(t.tableId))
       end
       local full = (t.taken or 0) >= (t.seatMax or 9)
       local verMismatch = c and t.ver ~= c.ver      -- exact-release gate (nil = old host)
       if t.tableId == mySeat or (hosting and c.tableHost.id == t.tableId) then
-        rf.btn:SetText("Here"); if rf.btn.Disable then rf.btn:Disable() end; rf.btn:Show()
+        rf.btn:SetText(L["Here"]); if rf.btn.Disable then rf.btn:Disable() end; rf.btn:Show()
       elseif verMismatch then
         rf.btn:SetText("Update"); if rf.btn.Disable then rf.btn:Disable() end; rf.btn:Show()
         rf.players:SetText("Different addon version (" .. (t.ver and ("v" .. t.ver) or "older")
           .. " vs your v" .. c.ver .. ") — install the same release.")
       elseif c and c.watching == t.tableId then
-        rf.btn:SetText("Watching"); if rf.btn.Disable then rf.btn:Disable() end; rf.btn:Show()
+        rf.btn:SetText(L["Watching"]); if rf.btn.Disable then rf.btn:Disable() end; rf.btn:Show()
       elseif (t.tourney and t.started) or full then
         -- can't sit (running Sit&Go / full table)? you can WATCH — unless you
         -- are busy hosting or sitting somewhere yourself
-        rf.btn:SetText("Watch"); rf.btn:Show()
+        rf.btn:SetText(L["Watch"]); rf.btn:Show()
         if hosting or mySeat then
           if rf.btn.Disable then rf.btn:Disable() end
         else
@@ -188,7 +189,7 @@ local function refresh()
           end)
         end
       else
-        rf.btn:SetText("Join"); if rf.btn.Enable then rf.btn:Enable() end; rf.btn:Show()
+        rf.btn:SetText(L["Join"]); if rf.btn.Enable then rf.btn:Enable() end; rf.btn:Show()
         rf.btn:SetScript("OnClick", function()
           if ns.onSlash then ns.onSlash("sit " .. t.tableId) end
           -- the lobby stays open as the waiting room; it tucks itself away when
@@ -204,15 +205,15 @@ local function refresh()
   if hosting then
     local th = c.tableHost
     if th.started then
-      panel.status:SetText("You are hosting (" .. #th.order .. " seated).")
+      panel.status:SetText(L["You are hosting (%d seated)."]:format(#th.order))
       panel.start:Hide()
     else
-      panel.status:SetText("Waiting for players — " .. #th.order .. " seated. Start when ready!")
+      panel.status:SetText(L["Waiting for players — %d seated. Start when ready!"]:format(#th.order))
       panel.start:Show()
       if #th.order >= 2 then
-        panel.start:SetText("Start Game"); if panel.start.Enable then panel.start:Enable() end
+        panel.start:SetText(L["Start Game"]); if panel.start.Enable then panel.start:Enable() end
       else
-        panel.start:SetText("Need 2+"); if panel.start.Disable then panel.start:Disable() end
+        panel.start:SetText(L["Need 2+"]); if panel.start.Disable then panel.start:Disable() end
       end
     end
     panel.closeT:Show(); panel.leave:Hide()
@@ -220,17 +221,17 @@ local function refresh()
   elseif mySeat then
     local t = c.lobby:get(mySeat)
     if c.client and c.client.seats then
-      panel.status:SetText("Seated at " .. tostring(mySeat) .. "'s table.")
+      panel.status:SetText(L["Seated at %s's table."]:format(tostring(mySeat)))
     else
-      panel.status:SetText("Seated at " .. tostring((t and t.name) or mySeat)
-        .. " — waiting for the host to start…")
+      panel.status:SetText(L["Seated at %s — waiting for the host to start…"]
+        :format(tostring((t and t.name) or mySeat)))
     end
     panel.start:Hide(); panel.leave:Show(); panel.closeT:Hide()
     if panel.create.Disable then panel.create:Disable() end
   elseif c and c.watching then
     local t = c.lobby:get(c.watching)
-    panel.status:SetText("Watching " .. tostring((t and t.name) or c.watching)
-      .. " — every hand is checked as you watch.")
+    panel.status:SetText(L["Watching %s — every hand is checked as you watch."]
+      :format(tostring((t and t.name) or c.watching)))
     panel.start:Hide(); panel.leave:Hide(); panel.closeT:Hide()
     if panel.create.Enable then panel.create:Enable() end
   else

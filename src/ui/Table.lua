@@ -3,6 +3,7 @@
 
 local ADDON, ns = ...
 local W = ns.W
+local L = ns.L
 local COL = W.COL
 local sin, cos, rad, floor = math.sin, math.cos, math.rad, math.floor
 local function rgba(t, a) return t[1], t[2], t[3], a or t[4] or 1 end
@@ -59,7 +60,7 @@ local function build()
   frame:SetPoint("CENTER")
 
   -- leave/close without slash commands: back to the lobby window in one click
-  frame.leave = W.button(frame, "Leave Table", function()
+  frame.leave = W.button(frame, L["Leave Table"], function()
     if not ns.onSlash then return end
     if ns.casino and ns.casino.tableHost then ns.onSlash("close")
     elseif ns.casino and ns.casino.watching then ns.onSlash("unwatch")
@@ -69,14 +70,14 @@ local function build()
   frame.leave:SetWidth(92); frame.leave:SetHeight(18)
   frame.leave:SetPoint("TOPRIGHT", -6, -4)
   -- host only: break toggle ("Pause" <-> "Resume"); a live hand always finishes
-  frame.pause = W.button(frame, "Pause", function()
+  frame.pause = W.button(frame, L["Pause"], function()
     if ns.onSlash then ns.onSlash("pause") end
   end)
   frame.pause:SetWidth(70); frame.pause:SetHeight(18)
   frame.pause:SetPoint("TOPRIGHT", -102, -4)
   frame.pause:Hide()
   -- players only (same slot as the host's Pause): skip hands without losing the seat
-  frame.sitout = W.button(frame, "Sit Out", function()
+  frame.sitout = W.button(frame, L["Sit Out"], function()
     if ns.onSlash then ns.onSlash("sitout") end
   end)
   frame.sitout:SetWidth(70); frame.sitout:SetHeight(18)
@@ -188,17 +189,17 @@ local function refresh(v)
     if ns.casino and ns.casino.tableHost then
       local sb, bb = ns.casino.tableHost:currentBlinds()
       if sb then
-        bl = "Blinds " .. W.commas(sb) .. "/" .. W.commas(bb)
+        bl = L["Blinds %s/%s"]:format(W.commas(sb), W.commas(bb))
         if ns.casino.tableHost.tourney then bl = bl .. " · L" .. (ns.casino.tableHost.level + 1) end
       end
     elseif ns.casino and ns.casino.client and ns.casino.client.sb then
-      bl = "Blinds " .. W.commas(ns.casino.client.sb) .. "/" .. W.commas(ns.casino.client.bb)
+      bl = L["Blinds %s/%s"]:format(W.commas(ns.casino.client.sb), W.commas(ns.casino.client.bb))
       local t = ns.casino.seatedAt and ns.casino.lobby:get(ns.casino.seatedAt)
-      if t and t.tourney then bl = bl .. " (rising)" end
+      if t and t.tourney then bl = bl .. L[" (rising)"] end
     elseif ns.casino and ns.casino.spectator and ns.casino.spectator.sb then
-      bl = "Blinds " .. W.commas(ns.casino.spectator.sb) .. "/" .. W.commas(ns.casino.spectator.bb)
+      bl = L["Blinds %s/%s"]:format(W.commas(ns.casino.spectator.sb), W.commas(ns.casino.spectator.bb))
       local t = ns.casino.watching and ns.casino.lobby:get(ns.casino.watching)
-      if t and t.tourney then bl = bl .. " (rising)" end
+      if t and t.tourney then bl = bl .. L[" (rising)"] end
     end
     local full = bl and ("Azeroth Hold'em — " .. bl) or "Azeroth Hold'em"
     if frame._titleShown ~= full then           -- SetText re-layouts even when equal
@@ -211,12 +212,12 @@ local function refresh(v)
   -- single-table mode has neither — hide the buttons there)
   local pausedNow = false
   if ns.casino then
-    frame.leave:SetText(ns.casino.tableHost and "Close Table"
-      or (ns.casino.watching and "Stop Watching" or "Leave Table"))
+    frame.leave:SetText(ns.casino.tableHost and L["Close Table"]
+      or (ns.casino.watching and L["Stop Watching"] or L["Leave Table"]))
     frame.leave:Show()
     if ns.casino.tableHost then
       pausedNow = ns.casino.tableHost.paused or false
-      frame.pause:SetText(pausedNow and "Resume" or "Pause")
+      frame.pause:SetText(pausedNow and L["Resume"] or L["Pause"])
       frame.pause:Show(); frame.sitout:Hide()
     elseif ns.casino.watching then
       frame.pause:Hide(); frame.sitout:Hide()       -- spectators have no controls
@@ -224,7 +225,7 @@ local function refresh(v)
       pausedNow = (t and t.paused) or false
     else
       frame.pause:Hide()
-      frame.sitout:SetText(ns.casino.amSittingOut and "I'm Back" or "Sit Out")
+      frame.sitout:SetText(ns.casino.amSittingOut and L["I'm Back"] or L["Sit Out"])
       frame.sitout:Show()
       local t = ns.casino.seatedAt and ns.casino.lobby:get(ns.casino.seatedAt)
       pausedNow = (t and t.paused) or false
@@ -273,11 +274,11 @@ local function refresh(v)
   if winners and #winners == 1 then
     local wn = winners[1]
     local combo = v.showdown and v.showdown[wn.seat] and v.showdown[wn.seat].handName
-    winLine = wn.seat .. " wins +" .. W.commas(wn.amt) .. (combo and ("  —  " .. combo) or "")
+    winLine = L["%s wins +%s"]:format(wn.seat, W.commas(wn.amt)) .. (combo and ("  —  " .. combo) or "")
   elseif winners then
     local parts = {}
     for i = 1, #winners do parts[i] = winners[i].seat .. " +" .. W.commas(winners[i].amt) end
-    winLine = "Split pot:  " .. table.concat(parts, ",  ")
+    winLine = L["Split pot:  "] .. table.concat(parts, ",  ")
   end
   frame._winLine = winLine
   frame.winText:SetText(winLine and ("|cffffd95c" .. winLine .. "|r") or "")
@@ -302,21 +303,21 @@ local function refresh(v)
 
   local STREET = { [0] = "pre-flop", [1] = "flop", [2] = "turn", [3] = "river" }
   local statusText
-  if v.aborted then statusText = "|cffff4444HALTED|r"
+  if v.aborted then statusText = "|cffff4444" .. L["HALTED"] .. "|r"
   elseif ns.casino and ns.casino.amSittingOut then
-    statusText = "|cff9ad0ffSitting out — click \"I'm Back\" to be dealt in.|r"
-  elseif winLine and pausedNow then statusText = "Hand complete — |cff9ad0fftable paused for a break|r"
-  elseif winLine then statusText = "Hand complete — next deal in a moment…"
-  elseif pausedNow and not v.toAct then statusText = "|cff9ad0ffTable paused — back soon!|r"
-  elseif v.myTurn then statusText = "|cffffd95cYour turn!|r" .. clock
-  elseif v.toAct then statusText = "Waiting for " .. tostring(v.toAct) .. "…" .. clock
+    statusText = "|cff9ad0ff" .. L["Sitting out — click \"I'm Back\" to be dealt in."] .. "|r"
+  elseif winLine and pausedNow then statusText = L["Hand complete — table paused for a break"]
+  elseif winLine then statusText = L["Hand complete — next deal in a moment…"]
+  elseif pausedNow and not v.toAct then statusText = "|cff9ad0ff" .. L["Table paused — back soon!"] .. "|r"
+  elseif v.myTurn then statusText = "|cffffd95c" .. L["Your turn!"] .. "|r" .. clock
+  elseif v.toAct then statusText = L["Waiting for %s…"]:format(tostring(v.toAct)) .. clock
   else statusText = "" end
   if pausedNow and v.toAct then
-    statusText = statusText .. "  |cff9ad0ff(break — no clock, finish at leisure)|r"
+    statusText = statusText .. "  |cff9ad0ff" .. L["(break — no clock, finish at leisure)"] .. "|r"
   end
   if not winLine and STREET[v.street] then statusText = statusText .. "  (" .. STREET[v.street] .. ")" end
   if v.spectating then
-    statusText = "|cff9ad0ffwatching|r" .. (statusText ~= "" and ("  ·  " .. statusText) or "")
+    statusText = "|cff9ad0ff" .. L["watching"] .. "|r" .. (statusText ~= "" and ("  ·  " .. statusText) or "")
   end
   frame.status:SetText(statusText)
 
@@ -336,7 +337,7 @@ local function refresh(v)
       if s.id == v.me then px = -118 end              -- your plate sits LEFT of your hole
       box:ClearAllPoints()                            -- cards so your chips stay visible
       box:SetPoint("CENTER", frame.felt, "CENTER", px, AY * sin(theta))
-      box.name:SetText(s.id == v.me and (s.id .. " (you)") or s.id)
+      box.name:SetText(s.id == v.me and L["%s (you)"]:format(s.id) or s.id)
       -- class icon: best-effort lookup (party/raid, then guild roster); when the
       -- class is unknown the plate simply renders without an icon
       local tok = ns.classOf and ns.classOf(s.id)
@@ -350,7 +351,7 @@ local function refresh(v)
         box.name:SetPoint("TOP", 0, -3)
       end
       box.stack:SetText(s.stack and W.commas(s.stack) or "")
-      box.bet:SetText((s.bet and s.bet > 0) and ("bet " .. W.commas(s.bet)) or "")
+      box.bet:SetText((s.bet and s.bet > 0) and L["bet %s"]:format(W.commas(s.bet)) or "")
       box:SetAlpha(s.folded and 0.4 or 1.0)
       if s.allIn then box.bet:SetText("ALL-IN") end
       if v.button and s.id == v.button then

@@ -10,6 +10,7 @@
 
 local ADDON, ns = ...
 local W = ns.W
+local L = ns.L
 local COL = W.COL
 local A = ns.Const.ACTION
 local function rgba(t, a) return t[1], t[2], t[3], a or t[4] or 1 end
@@ -43,13 +44,13 @@ local function build()
   bar = CreateFrame("Frame", nil, host)
   bar:SetAllPoints(host)
 
-  bar.fold = W.button(bar, "Fold", function() act(A.FOLD) end)
+  bar.fold = W.button(bar, L["Fold"], function() act(A.FOLD) end)
   bar.fold:SetWidth(64); bar.fold:SetHeight(24); bar.fold:SetPoint("BOTTOMLEFT", 6, 10)
-  bar.check = W.button(bar, "Check", function() act(A.CHECK) end)
+  bar.check = W.button(bar, L["Check"], function() act(A.CHECK) end)
   bar.check:SetWidth(92); bar.check:SetHeight(24); bar.check:SetPoint("LEFT", bar.fold, "RIGHT", 4, 0)
-  bar.call = W.button(bar, "Call", function() act(A.CALL) end)
+  bar.call = W.button(bar, L["Call"], function() act(A.CALL) end)
   bar.call:SetWidth(92); bar.call:SetHeight(24); bar.call:SetPoint("LEFT", bar.fold, "RIGHT", 4, 0)
-  bar.raise = W.button(bar, "Raise to", function()
+  bar.raise = W.button(bar, L["Raise to"], function()
     act((bar._opener and A.BET) or A.RAISE, amountVal())
   end)
   bar.raise:SetWidth(80); bar.raise:SetHeight(24); bar.raise:SetPoint("LEFT", bar.check, "RIGHT", 4, 0)
@@ -61,16 +62,16 @@ local function build()
       if v and bar.amount.SetText then bar.amount:SetText(tostring(v)) end
     end)
   end
-  bar.qMin = quick("Min", function() return bar._min end)
+  bar.qMin = quick(L["Min"], function() return bar._min end)
   bar.qMin:SetWidth(40); bar.qMin:SetHeight(20); bar.qMin:SetPoint("LEFT", bar.amount, "RIGHT", 10, 0)
-  bar.qPot = quick("Pot", function()
+  bar.qPot = quick(L["Pot"], function()
     local v = bar._pot
     if v and bar._min and v < bar._min then v = bar._min end
     if v and bar._max and v > bar._max then v = bar._max end
     return v
   end)
   bar.qPot:SetWidth(40); bar.qPot:SetHeight(20); bar.qPot:SetPoint("LEFT", bar.qMin, "RIGHT", 3, 0)
-  bar.qMax = quick("All-in", function() return bar._max end)
+  bar.qMax = quick(L["All-in"], function() return bar._max end)
   bar.qMax:SetWidth(44); bar.qMax:SetHeight(20); bar.qMax:SetPoint("LEFT", bar.qPot, "RIGHT", 3, 0)
 
   -- pre-actions (armed while WAITING for your turn; fire instantly when it comes):
@@ -85,8 +86,8 @@ local function build()
     cb.label:SetPoint("LEFT", cb, "RIGHT", 1, 0)
     return cb
   end
-  bar.preCF = mkPre("Check/Fold", 462, 22)
-  bar.preCall = mkPre("Call any", 462, 3)
+  bar.preCF = mkPre(L["Check/Fold"], 462, 22)
+  bar.preCall = mkPre(L["Call any"], 462, 3)
   local function setPre(cb, on)
     cb._on = on and true or false
     if cb.SetChecked then cb:SetChecked(cb._on) end
@@ -172,7 +173,7 @@ local function refresh(v)
   -- instead of making them click a button with no alternative
   if v.canCheck and not canAggro and not bar._lastTurn then
     bar._lastTurn = true
-    if ns.Log then ns.Log.info("Checked automatically — no other action was possible.") end
+    if ns.Log then ns.Log.info(L["Checked automatically — no other action was possible."]) end
     act(A.CHECK)
     return
   end
@@ -184,14 +185,14 @@ local function refresh(v)
   bar._pot = v.pot
 
   if v.canCheck then bar.check:Show(); bar.call:Hide()
-  else bar.check:Hide(); bar.call:Show(); bar.call:SetText("Call " .. W.commas(v.toCall or 0)) end
+  else bar.check:Hide(); bar.call:Show(); bar.call:SetText(L["Call %s"]:format(W.commas(v.toCall or 0))) end
   -- no legal bet/raise (or unknown range): grey the aggressive controls
   if canAggro and bar._min then
     if bar.raise.Enable then bar.raise:Enable() end
   else
     if bar.raise.Disable then bar.raise:Disable() end
   end
-  bar.raise:SetText(v.canBet and "Bet" or "Raise to")
+  bar.raise:SetText(v.canBet and L["Bet"] or L["Raise to"])
 
   -- quick-fills only make sense with a known value
   if not bar._min and bar.qMin.Disable then bar.qMin:Disable() end

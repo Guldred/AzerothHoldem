@@ -2,7 +2,7 @@
 ## Title: Azeroth Hold'em
 ## Notes: Peer-verifiable Texas Hold'em with cryptographic anti-cheat (Tier 1)
 ## Author: Guldred & Fable
-## Version: 1.4.0
+## Version: 1.5.0
 ## SavedVariables: AzerothHoldemDB
 ## SavedVariablesPerCharacter: AzerothHoldemCharDB
 
@@ -10,6 +10,7 @@
 src\core\Const.lua
 src\core\Util.lua
 src\core\Log.lua
+src\core\Locale.lua
 
 # --- crypto (pure) ---
 src\crypto\Bit.lua
