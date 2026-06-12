@@ -87,7 +87,13 @@ function Casino:_control(sender, payload, channel)
   local op, d = Codec.decode(payload)
   if d == nil then return end
   if op == OP.TABLE then
+    if sender ~= d.tableId then return end   -- only the dealer advertises its table
     self.lobby:onAd(d)
+    -- an EXPLICIT close of the watched table releases the spectator right away
+    if d.open == false and self.watching == d.tableId then
+      self:unspectate()
+      if self.cfg.onNotice then self.cfg.onNotice("The table you were watching has closed.") end
+    end
   elseif op == OP.PING then
     if self.tableHost then self.tableHost:advertise(true) end   -- rate-limited
   elseif op == OP.JOIN then
@@ -152,6 +158,7 @@ end
 -- ---- lifecycle -------------------------------------------------------------
 function Casino:host(opts)
   if self.tableHost then return end
+  self:unspectate()                       -- dealing replaces watching
   self.tableHost = ns.TableHost.new({
     tableId = self.me, name = opts.name, sb = opts.sb, bb = opts.bb, variant = opts.variant,
     version = self.ver,                       -- advertised so joiners can self-gate
@@ -184,6 +191,7 @@ function Casino:join(tableId)
     return false, "version mismatch"
   end
   if self.seatedAt then self:leave() end
+  self:unspectate()                       -- sitting down replaces watching
   self.seatedAt = tableId
   self:_send(LOBBY, Codec.encode(OP.JOIN, { table = tableId, ver = self.ver }), self.broadcast, nil)
   return true
@@ -210,6 +218,32 @@ function Casino:leave()
 end
 
 function Casino:changeTable(tableId) self:leave(); self:join(tableId) end
+
+-- ---- spectating: watch a table without sitting (purely passive — the spectator
+-- session registers for the table's routing tag and never sends a byte) --------
+function Casino:spectate(tableId)
+  if self.tableHost then return false, "you are hosting a table" end
+  if self.seatedAt then return false, "you are seated — stand up first" end
+  local t = self.lobby:get(tableId)
+  if not t then return false, "no such table on the floor" end
+  if t.ver ~= self.ver then        -- watching parses every frame: same release only
+    return false, "that table runs " .. (t.ver and ("v" .. t.ver) or "an older version")
+      .. " but you have v" .. self.ver .. " — install the same release to watch"
+  end
+  if self.watching == tableId then return true end
+  self:unspectate()
+  self.spectator = ns.Spectator.new({ selfName = self.me, hostName = tableId })
+  self.spectator.onCheat = self.cfg.onCheat        -- local display only; never broadcast
+  self.sessions[tableId] = self.spectator
+  self.watching = tableId
+  return true
+end
+
+function Casino:unspectate()
+  if not self.watching then return end
+  self.sessions[self.watching] = nil
+  self.spectator, self.watching = nil, nil
+end
 
 -- the host closes their table: no more ads/joins/hands. If a hand is live it
 -- finishes first; the table then disbands (all seats released) on a later tick.
@@ -267,6 +301,13 @@ function Casino:tick(dt)
   if self.tableHost then self.tableHost:tick(dt) end
   if self._closing and self.tableHost and not handLive(self.tableHost) then
     self.tableHost:disband(); self.tableHost = nil; self._closing = nil
+  end
+  -- the watched table's ads went silent past the lobby TTL (host gone/lagging
+  -- hard): release with an honest "lost contact" — an explicit close is handled
+  -- the moment its final ad arrives (see _control)
+  if self.watching and not self.lobby:get(self.watching) then
+    self:unspectate()
+    if self.cfg.onNotice then self.cfg.onNotice("Lost contact with the table you were watching.") end
   end
   -- a finished Sit&Go lingers a few ticks (everyone reads the result), then the
   -- table closes itself and releases the seats

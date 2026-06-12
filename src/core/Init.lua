@@ -123,7 +123,7 @@ end
 local function activeSession()
   if ns.session then return ns.session end
   local c = ns.casino
-  if c then return (c.tableHost and c.tableHost.host) or c.client end
+  if c then return (c.tableHost and c.tableHost.host) or c.client or c.spectator end
   return nil
 end
 ns.activeSession = activeSession
@@ -388,6 +388,16 @@ local handlers = {
   end,
   stats = function()
     if ns.UI and ns.UI.showStats then ns.UI.showStats() end
+  end,
+  watch = function(a)
+    if not a[2] then return Log.error("/azh watch <dealer name>") end
+    local ok, err = ensureCasino():spectate(a[2])
+    if ok then Log.info("Watching " .. a[2] .. "'s table — the cards are checked as you watch.")
+    else Log.error("Can't watch: " .. tostring(err)) end
+  end,
+  unwatch = function()
+    if ns.casino then ns.casino:unspectate() end
+    Log.info("Stopped watching.")
   end,
   scale = function(a)
     local s = tonumber(a[2])

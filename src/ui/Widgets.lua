@@ -519,6 +519,9 @@ function ns.UI.viewOf(s)
     end
     v.refused = s.lastRefuse              -- why the host rejected our last action (if it did)
     v.deltas, v.showdown = s.deltas, s.showdown
+    v.spectating = s.spectating           -- watching, not seated (no controls)
+    v.boardVerified = s.boardVerified     -- spectator: revealed cards checked OK
+    v.unverified = s.unverified           -- spectator: missed a broadcast this hand
   end
   -- best-hand name once we can make 5 (nice "Pair of Kings" readout)
   if #v.hole >= 2 and (#v.hole + #v.board) >= 5 and ns.HandEval then

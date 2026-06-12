@@ -66,7 +66,10 @@ function ns.UI.showFairness()
     setCheck("same", bad or (v.crossChecked or nil))
     -- the dealer doesn't verify its own deal — its cards/audit rows complete when
     -- the hand does and no client raised a CHEAT (which now reaches the dealer)
-    setCheck("cards", bad or (v.isHost and (v.deltas and true or nil) or v.holeVerified))
+    -- watchers verify the PUBLIC cards (board/showdown) — they hold no holes
+    setCheck("cards", bad or (v.isHost and (v.deltas and true or nil)
+      or (v.spectating and (v.boardVerified and v.deckCommitted) or nil)
+      or v.holeVerified))
     setCheck("audit", bad or (v.isHost and (v.deltas and true or nil) or v.auditPassed))
     local n = (not v.isHost and s.auditCount) or nil
     if not v.isHost and v.resumed then
@@ -125,7 +128,9 @@ local function refresh(v)
   end
   banner:SetText("")
   if v.auditPassed then setState(W.ICON.ready, "fair play: hand verified")
-  elseif v.holeVerified then setState(W.ICON.ready, "fair play: cards verified")
+  elseif v.unverified then setState(W.ICON.waiting, "fair play: couldn't verify this hand (missed a broadcast)")
+  elseif v.holeVerified or (v.spectating and v.boardVerified) then
+    setState(W.ICON.ready, "fair play: cards verified")
   elseif v.sealed then setState(W.ICON.waiting, "fair play: deck sealed, verifying…")
   else setState(W.ICON.waiting, "fair play: preparing…") end
 end

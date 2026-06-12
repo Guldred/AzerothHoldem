@@ -61,7 +61,9 @@ local function build()
   -- leave/close without slash commands: back to the lobby window in one click
   frame.leave = W.button(frame, "Leave Table", function()
     if not ns.onSlash then return end
-    if ns.casino and ns.casino.tableHost then ns.onSlash("close") else ns.onSlash("stand") end
+    if ns.casino and ns.casino.tableHost then ns.onSlash("close")
+    elseif ns.casino and ns.casino.watching then ns.onSlash("unwatch")
+    else ns.onSlash("stand") end
     if ns.UI.showLobby then ns.UI.showLobby() end
   end)
   frame.leave:SetWidth(92); frame.leave:SetHeight(18)
@@ -193,6 +195,10 @@ local function refresh(v)
       bl = "Blinds " .. W.commas(ns.casino.client.sb) .. "/" .. W.commas(ns.casino.client.bb)
       local t = ns.casino.seatedAt and ns.casino.lobby:get(ns.casino.seatedAt)
       if t and t.tourney then bl = bl .. " (rising)" end
+    elseif ns.casino and ns.casino.spectator and ns.casino.spectator.sb then
+      bl = "Blinds " .. W.commas(ns.casino.spectator.sb) .. "/" .. W.commas(ns.casino.spectator.bb)
+      local t = ns.casino.watching and ns.casino.lobby:get(ns.casino.watching)
+      if t and t.tourney then bl = bl .. " (rising)" end
     end
     local full = bl and ("Azeroth Hold'em — " .. bl) or "Azeroth Hold'em"
     if frame._titleShown ~= full then           -- SetText re-layouts even when equal
@@ -205,12 +211,17 @@ local function refresh(v)
   -- single-table mode has neither — hide the buttons there)
   local pausedNow = false
   if ns.casino then
-    frame.leave:SetText(ns.casino.tableHost and "Close Table" or "Leave Table")
+    frame.leave:SetText(ns.casino.tableHost and "Close Table"
+      or (ns.casino.watching and "Stop Watching" or "Leave Table"))
     frame.leave:Show()
     if ns.casino.tableHost then
       pausedNow = ns.casino.tableHost.paused or false
       frame.pause:SetText(pausedNow and "Resume" or "Pause")
       frame.pause:Show(); frame.sitout:Hide()
+    elseif ns.casino.watching then
+      frame.pause:Hide(); frame.sitout:Hide()       -- spectators have no controls
+      local t = ns.casino.lobby:get(ns.casino.watching)
+      pausedNow = (t and t.paused) or false
     else
       frame.pause:Hide()
       frame.sitout:SetText(ns.casino.amSittingOut and "I'm Back" or "Sit Out")
@@ -304,6 +315,9 @@ local function refresh(v)
     statusText = statusText .. "  |cff9ad0ff(break — no clock, finish at leisure)|r"
   end
   if not winLine and STREET[v.street] then statusText = statusText .. "  (" .. STREET[v.street] .. ")" end
+  if v.spectating then
+    statusText = "|cff9ad0ffwatching|r" .. (statusText ~= "" and ("  ·  " .. statusText) or "")
+  end
   frame.status:SetText(statusText)
 
   -- seats around the oval, rotated so "me" sits at the bottom

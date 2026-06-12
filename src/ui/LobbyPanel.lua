@@ -173,11 +173,20 @@ local function refresh()
         rf.btn:SetText("Update"); if rf.btn.Disable then rf.btn:Disable() end; rf.btn:Show()
         rf.players:SetText("Different addon version (" .. (t.ver and ("v" .. t.ver) or "older")
           .. " vs your v" .. c.ver .. ") — install the same release.")
-      elseif t.tourney and t.started then
-        -- a running Sit&Go seats nobody new (busting out must mean OUT)
-        rf.btn:SetText("In play"); if rf.btn.Disable then rf.btn:Disable() end; rf.btn:Show()
-      elseif full then
-        rf.btn:SetText("Full"); if rf.btn.Disable then rf.btn:Disable() end; rf.btn:Show()
+      elseif c and c.watching == t.tableId then
+        rf.btn:SetText("Watching"); if rf.btn.Disable then rf.btn:Disable() end; rf.btn:Show()
+      elseif (t.tourney and t.started) or full then
+        -- can't sit (running Sit&Go / full table)? you can WATCH — unless you
+        -- are busy hosting or sitting somewhere yourself
+        rf.btn:SetText("Watch"); rf.btn:Show()
+        if hosting or mySeat then
+          if rf.btn.Disable then rf.btn:Disable() end
+        else
+          if rf.btn.Enable then rf.btn:Enable() end
+          rf.btn:SetScript("OnClick", function()
+            if ns.onSlash then ns.onSlash("watch " .. t.tableId) end
+          end)
+        end
       else
         rf.btn:SetText("Join"); if rf.btn.Enable then rf.btn:Enable() end; rf.btn:Show()
         rf.btn:SetScript("OnClick", function()
@@ -218,6 +227,12 @@ local function refresh()
     end
     panel.start:Hide(); panel.leave:Show(); panel.closeT:Hide()
     if panel.create.Disable then panel.create:Disable() end
+  elseif c and c.watching then
+    local t = c.lobby:get(c.watching)
+    panel.status:SetText("Watching " .. tostring((t and t.name) or c.watching)
+      .. " — every hand is checked as you watch.")
+    panel.start:Hide(); panel.leave:Hide(); panel.closeT:Hide()
+    if panel.create.Enable then panel.create:Enable() end
   else
     panel.status:SetText("")
     panel.start:Hide(); panel.leave:Hide(); panel.closeT:Hide()

@@ -127,7 +127,8 @@ local function refresh(v)
   end
 
   -- pre-action boxes show while a hand is live and it's NOT your turn
-  local inHand = v and v.toAct and not v.aborted and not v.deltas
+  -- (never for spectators — watching grants no controls at all)
+  local inHand = v and v.toAct and not v.aborted and not v.deltas and not v.spectating
   if inHand and not v.myTurn then
     bar.preCF:Show(); bar.preCall:Show()
     bar.preCF.label:Show(); bar.preCall.label:Show()
