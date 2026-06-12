@@ -160,6 +160,7 @@ function Casino:host(opts)
     adInterval = self.cfg.adInterval, restTicks = opts.restTicks, turnTimeout = self.cfg.turnTimeout,
     tourney = opts.tourney,                   -- sit&go config { stack, handsPerLevel }
     onTourney = function(ev) if self.cfg.onTourney then self.cfg.onTourney(ev) end end,
+    onHandResult = self.cfg.onHandResult,     -- per-hand stats event (Init wires it)
     postControl = function(p, ch) self:_send(LOBBY, p, ch, nil) end,
     sessionTransport = function() return self:_tagged(self.me) end,
     registerHost = function(tableId, host) self.sessions[tableId] = host end,
@@ -192,6 +193,7 @@ function Casino:_spawnClient(tableId)
   self.client = ns.Client.new({
     transport = self:_tagged(tableId), selfName = self.me, entropy = self.cfg.entropy,
     broadcast = self.broadcast, onCheat = self.cfg.onCheat, policy = self.cfg.policy, human = self.cfg.human,
+    onHandResult = self.cfg.onHandResult, onAudit = self.cfg.onAudit,   -- stats events
   })
   self.sessions[tableId] = self.client
   -- if a hand is live and WE are in it (e.g. we relogged mid-hand and just re-sat),

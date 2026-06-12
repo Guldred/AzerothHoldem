@@ -36,7 +36,11 @@ local function build()
   panel.refresh = W.button(panel, "Refresh", function()
     if casino() then casino():announce() end          -- cooldown-limited PING
   end)
-  panel.refresh:SetWidth(70); panel.refresh:SetPoint("TOPRIGHT", -12, -32)
+  panel.refresh:SetWidth(56); panel.refresh:SetPoint("TOPRIGHT", -12, -32)
+  panel.stats = W.button(panel, "Stats", function()
+    if ns.UI.showStats then ns.UI.showStats() end
+  end)
+  panel.stats:SetWidth(50); panel.stats:SetPoint("TOPRIGHT", -70, -32)
 
   -- the table list
   panel.listHead = W.label(panel, "Tables", "GameFontNormal")

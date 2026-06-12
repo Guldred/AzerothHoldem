@@ -198,6 +198,15 @@ local function ordinal(n)
   return n .. (last == 1 and "st" or last == 2 and "nd" or last == 3 and "rd" or "th")
 end
 
+-- golden chat line + level-up chime for each newly unlocked achievement
+local function announce(unlocked)
+  if not unlocked then return end
+  for _, a in ipairs(unlocked) do
+    Log.info("|cffffd95cAchievement unlocked: " .. a.name .. "|r — " .. a.desc)
+    if type(PlaySound) == "function" then PlaySound("LEVELUPSOUND") end
+  end
+end
+
 local function recordFinish(place)
   local t = ns.cdb and ns.cdb.tourney
   if not t then t = { played = 0, won = 0, places = {} }; if ns.cdb then ns.cdb.tourney = t end end
@@ -217,10 +226,16 @@ local function onTourney(ev)
       (ev.sb or "?") .. "/" .. (ev.bb or "?"))
   elseif ev.kind == "out" then
     Log.info(tostring(ev.player) .. " finishes " .. ordinal(ev.place or 0) .. ".")
-    if atTable and ev.player == me then recordFinish(ev.place or 0) end
+    if atTable and ev.player == me then
+      recordFinish(ev.place or 0)
+      if ns.stats then announce(ns.stats:onTourneyFinish(ev.place or 0)) end
+    end
   elseif ev.kind == "end" then
     Log.info("|cffffd95c" .. tostring(ev.winner) .. " wins the Sit & Go!|r")
-    if atTable and ev.winner == me then recordFinish(1) end
+    if atTable and ev.winner == me then
+      recordFinish(1)
+      if ns.stats then announce(ns.stats:onTourneyFinish(1)) end
+    end
   end
 end
 
@@ -237,6 +252,8 @@ local function ensureCasino()
       defaultStack = (ns.db and ns.db.defaultStack) or 1000, onCheat = onCheat,
       onNotice = function(msg) Log.error(msg) end,   -- join refusals, version mismatches
       onTourney = onTourney,                         -- sit&go level/elimination/winner lines
+      onHandResult = function(ev) if ns.stats then announce(ns.stats:onHand(ev)) end end,
+      onAudit = function() if ns.stats then announce(ns.stats:onAudit()) end end,
       -- comms budget: a host sends ONE small ad per minute; the PING-on-open path
       -- handles instant discovery, so the periodic ad is just a TTL keep-alive.
       adInterval = 60, lobbyTtl = 180, turnTimeout = 60, human = true,
@@ -368,6 +385,9 @@ local handlers = {
   end,
   fair = function()
     if ns.UI and ns.UI.showFairness then ns.UI.showFairness() end
+  end,
+  stats = function()
+    if ns.UI and ns.UI.showStats then ns.UI.showStats() end
   end,
   scale = function(a)
     local s = tonumber(a[2])
@@ -529,6 +549,8 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4)
     ns.db = AzerothHoldemDB
     AzerothHoldemCharDB = AzerothHoldemCharDB or {}
     ns.cdb = AzerothHoldemCharDB
+    ns.cdb.stats = ns.cdb.stats or {}
+    ns.stats = ns.Stats.new(ns.cdb.stats)
   elseif event == "PLAYER_LOGIN" then
     ensureComm()
     SLASH_AZEROTHHOLDEM1 = "/azh"

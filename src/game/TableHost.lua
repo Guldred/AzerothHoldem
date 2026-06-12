@@ -236,6 +236,23 @@ function TableHost:_onHandComplete(h)
   end
   self.ledger:applyHandResult(deltas)                      -- carry stacks to next hand
   self.completedHands = (self.completedHands or 0) + 1
+  -- my own record (pure event; Init feeds it to Stats): the dealer counts a
+  -- hosted hand always, and a played hand only when actually dealt in
+  if self.cfg.onHandResult then
+    local ev = { hosting = true }
+    local seat = h.dealer.rules.seats[self.id]
+    if seat then
+      ev.delta = deltas[self.id]
+      ev.showdown = h.showdown ~= nil
+      ev.folded = seat.folded
+      ev.allIn = seat.allIn
+      local hr = h.dealer:holeReveal(self.id)
+      ev.hole = { hr[1].val, hr[2].val }
+      local bc = h.dealer.variant.boardSchedule[h.revealedStreet] or 0
+      ev.board = h.dealer:boardCards(bc)
+    end
+    self.cfg.onHandResult(ev)
+  end
   if self.tourney then self:_tourneyEliminations() end
   self.buttonIdx = self.buttonIdx + 1                      -- rotate the button
   -- keep self.host (phase DONE, fully inert) so the host's table window keeps

@@ -45,6 +45,7 @@ function Client.new(cfg)
     broadcast = cfg.broadcast or "RAID", onCheat = cfg.onCheat,
     policy = cfg.policy or defaultClientPolicy,
     human = cfg.human, prompt = nil,   -- human-driven client: wait for humanAct() on its turn
+    onHandResult = cfg.onHandResult, onAudit = cfg.onAudit,   -- stats events (Init wires them)
     hostName = nil, deltas = nil, folded = {},
     phase = PHASE.IDLE,
     seats = nil, order = nil, handNo = nil,
@@ -165,6 +166,7 @@ function Client:onMessage(sender, payload, channel)
     self.hole, self.holeVerified, self.board, self.boardVerified = nil, false, {}, true
     self.auditPassed, self.deltas, self.folded = false, nil, {}
     self.toActSeat, self.prompt, self.lastActed, self.showdown = nil, nil, nil, nil
+    self.wasAllIn = false
     self.handNo = d.handNo
     self.seats = d.seats
     self.order = canonical(d.seats)
@@ -240,6 +242,7 @@ function Client:onMessage(sender, payload, channel)
 
   elseif op == OP.ACTED then
     if d.action == CC.ACTION.FOLD then self.folded[d.seat] = true end
+    if d.seat == self.me and d.allin then self.wasAllIn = true end
     self.lastActed = d
 
   elseif op == OP.SHOWDOWN then
@@ -263,6 +266,18 @@ function Client:onMessage(sender, payload, channel)
     self.deltas = d.deltas
     if self.stacks then                          -- roll the results into the chip counts
       for seat, dlt in pairs(d.deltas) do self.stacks[seat] = (self.stacks[seat] or 0) + dlt end
+    end
+    -- my record for this hand (pure event; Init feeds it to Stats)
+    if self.onHandResult and d.deltas[self.me] ~= nil then
+      local hole
+      if self.hole and self.hole[1] then hole = { self.hole[1].val, self.hole[2] and self.hole[2].val } end
+      local board = {}
+      for i = 1, #self.board do board[i] = self.board[i].val end
+      self.onHandResult({
+        delta = d.deltas[self.me], showdown = self.showdown ~= nil,
+        folded = self.folded[self.me] or false, allIn = self.wasAllIn or false,
+        hole = hole, board = board,
+      })
     end
 
   elseif op == OP.ENDREVEAL then
@@ -436,6 +451,7 @@ function Client:_audit(d)
     return self:_abort(f.code, f.detail)
   end
   self.auditCount = (self.auditCount or 0) + 1     -- hands verified this session
+  if self.onAudit then self.onAudit() end
   self.phase = PHASE.DONE
 end
 
