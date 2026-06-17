@@ -224,7 +224,8 @@ local function onTourney(ev)
   -- only record PERSONAL results for a table we are actually at (the wire layer
   -- already requires sender == tableId; this also keeps other tables off our book)
   local c = ns.casino
-  local atTable = c and (c.seatedAt == ev.tableId or (c.tableHost and c.tableHost.id == ev.tableId))
+  local atTable = c and (c.seatedAt == ev.tableId or c.recentTable == ev.tableId
+    or (c.tableHost and c.tableHost.id == ev.tableId))
   if ev.kind == "level" then
     Log.info("|cffffd95c" .. LL("Blinds up! Level %s: %s/%s"):format(
       tostring(ev.level or "?"), tostring(ev.sb or "?"), tostring(ev.bb or "?")) .. "|r")
@@ -304,7 +305,7 @@ local handlers = {
     if ns.session and ns.session.start then return ns.session:start() end
     if ns.casino and ns.casino.tableHost then
       local ok, err = ns.casino:startGame()
-      if ok then Log.info("Game on — dealing the first hand!")
+      if ok then Log.info(LL("Game on — dealing the first hand!"))
       else Log.error("Can't start: " .. tostring(err)) end
       return
     end
@@ -362,13 +363,13 @@ local handlers = {
   sit = function(a)
     if not a[2] then return Log.error("/azh sit <dealer name>") end
     ensureCasino():join(a[2])
-    Log.info("Sitting down at " .. a[2] .. "'s table.")
+    Log.info(LL("Sitting down at %s's table."):format(a[2]))
   end,
   stand = function()
     if not ns.casino then return end
     if ns.casino.tableHost then return Log.info("You are hosting — /azh close to close your table.") end
     if not ns.casino.seatedAt then return Log.info("You are not seated at a table.") end
-    ns.casino:leave(); Log.info("Stood up from the table.")
+    ns.casino:leave(); Log.info(LL("Stood up from the table."))
   end,
   close = function()
     if not (ns.casino and ns.casino.tableHost) then return Log.info("You are not hosting a table.") end
@@ -378,15 +379,15 @@ local handlers = {
   pause = function()
     if not (ns.casino and ns.casino.tableHost) then return Log.info("You are not hosting a table.") end
     local _, nowPaused = ns.casino:pauseTable()
-    if nowPaused then Log.info("Table paused — break time! (Turn clock stopped; the current hand can be finished at leisure.)")
-    else Log.info("Break over — the clock is back on and dealing continues.") end
+    if nowPaused then Log.info(LL("Table paused — break time! (Turn clock stopped; the current hand can be finished at leisure.)"))
+    else Log.info(LL("Break over — the clock is back on and dealing continues.")) end
   end,
   sitout = function()
     if not ns.casino then return end
     local ok, res = ns.casino:sitOut()
     if not ok then return Log.error("Can't sit out: " .. tostring(res)) end
-    if res then Log.info("Sitting out — you keep your seat and chips; hands skip you until you return.")
-    else Log.info("You're back in — dealt from the next hand.") end
+    if res then Log.info(LL("Sitting out — you keep your seat and chips; hands skip you until you return."))
+    else Log.info(LL("You're back in — dealt from the next hand.")) end
   end,
   fair = function()
     if ns.UI and ns.UI.showFairness then ns.UI.showFairness() end
@@ -397,19 +398,19 @@ local handlers = {
   top = function(a)
     if (a[2] or ""):lower() == "reset" then
       if ns.leaderboard then ns.leaderboard:reset() end
-      return Log.info("Guild leaderboard cleared.")
+      return Log.info(LL("Guild leaderboard cleared."))
     end
     if ns.UI and ns.UI.showLeaderboard then ns.UI.showLeaderboard() end
   end,
   watch = function(a)
     if not a[2] then return Log.error("/azh watch <dealer name>") end
     local ok, err = ensureCasino():spectate(a[2])
-    if ok then Log.info("Watching " .. a[2] .. "'s table — the cards are checked as you watch.")
+    if ok then Log.info(LL("Watching %s's table — the cards are checked as you watch."):format(a[2]))
     else Log.error("Can't watch: " .. tostring(err)) end
   end,
   unwatch = function()
     if ns.casino then ns.casino:unspectate() end
-    Log.info("Stopped watching.")
+    Log.info(LL("Stopped watching."))
   end,
   -- /azh lang en|de|ru — fix the language; "auto" follows the game client;
   -- "next" (the lobby button) cycles. Persisted per account, applied instantly.

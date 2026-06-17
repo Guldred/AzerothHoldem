@@ -199,7 +199,14 @@ function TableHost:startHand()
     local p = self.order[i]
     if not self.sitOut[p] then active[#active + 1] = p end
   end
-  if #active < 2 then return false, "need 2+ players" end
+  if #active < 2 then
+    -- a forfeit/bust just above may have collapsed a Sit&Go to its last player
+    -- INSIDE startHand (a betting-phase Leave is deferred to pendingLeave and
+    -- lands here, not at a checked forfeit site) — crown the survivor or the
+    -- tournament would strand with no winner and the table would never disband
+    self:_tourneyCheckEnd()
+    return false, "need 2+ players"
+  end
   self:_broadcastSeats()                            -- announce final seating so new joiners spawn their client
 
   if self.buttonIdx > #self.order then self.buttonIdx = 1 end

@@ -62,6 +62,7 @@ local function build()
     panel.hPlayer:SetText(L["Player"])
     panel.hWon:SetText(L["Won"]); panel.hCash:SetText(L["Cashed"]); panel.hPlayed:SetText(L["Played"])
     panel.foot:SetText(L["Observed live — not a verified ranking. /azh top reset to clear."])
+    if panel.IsShown and panel:IsShown() then ns.UI.showLeaderboard() end   -- repaint body live
   end)
 
   panel:Hide()

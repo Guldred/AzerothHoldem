@@ -102,6 +102,16 @@ DICT.deDE = {
   ["  (best finish: %d)"] = "  (beste Platzierung: %d)",
   ["Hands dealt as host: %s   ·   hands verified clean: %s"] = "Als Geber ausgeteilt: %s   ·   sauber verifiziert: %s",
   -- chat lines (Init)
+  ["Game on — dealing the first hand!"] = "Auf geht's — die erste Hand wird gegeben!",
+  ["Sitting down at %s's table."] = "Du setzt dich an %ss Tisch.",
+  ["Stood up from the table."] = "Du bist vom Tisch aufgestanden.",
+  ["Table paused — break time! (Turn clock stopped; the current hand can be finished at leisure.)"] = "Tisch pausiert — Pause! (Die Uhr steht; die laufende Hand kann in Ruhe zu Ende gespielt werden.)",
+  ["Break over — the clock is back on and dealing continues."] = "Pause vorbei — die Uhr läuft wieder und es wird weiter gegeben.",
+  ["Sitting out — you keep your seat and chips; hands skip you until you return."] = "Du setzt aus — Platz und Chips bleiben dir; Hände überspringen dich, bis du zurückkehrst.",
+  ["You're back in — dealt from the next hand."] = "Du bist zurück — ab der nächsten Hand wird dir gegeben.",
+  ["Guild leaderboard cleared."] = "Gilden-Rangliste geleert.",
+  ["Watching %s's table — the cards are checked as you watch."] = "Du schaust %ss Tisch zu — die Karten werden live geprüft.",
+  ["Stopped watching."] = "Zusehen beendet.",
   ["loaded — type /azh to open the casino."] = "geladen — tippe /azh, um das Casino zu öffnen.",
   ["Achievement unlocked: %s"] = "Erfolg freigeschaltet: %s",
   ["Blinds up! Level %s: %s/%s"] = "Blinds steigen! Stufe %s: %s/%s",
@@ -198,6 +208,16 @@ DICT.ruRU = {
   ["Blinds up! Level %s: %s/%s"] = "Блайнды растут! Уровень %s: %s/%s",
   ["%s finishes %s."] = "%s занимает место: %s.",
   ["%s wins the Sit & Go!"] = "%s выигрывает Sit & Go!",
+  ["Game on — dealing the first hand!"] = "Игра началась — раздаём первую руку!",
+  ["Sitting down at %s's table."] = "Вы садитесь за стол игрока %s.",
+  ["Stood up from the table."] = "Вы встали из-за стола.",
+  ["Table paused — break time! (Turn clock stopped; the current hand can be finished at leisure.)"] = "Стол на паузе — перерыв! (Таймер остановлен; текущую руку можно спокойно доиграть.)",
+  ["Break over — the clock is back on and dealing continues."] = "Перерыв окончен — таймер снова идёт, раздача продолжается.",
+  ["Sitting out — you keep your seat and chips; hands skip you until you return."] = "Вы пропускаете — место и фишки остаются за вами; руки идут без вас, пока не вернётесь.",
+  ["You're back in — dealt from the next hand."] = "Вы вернулись — со следующей руки вам раздают.",
+  ["Guild leaderboard cleared."] = "Таблица гильдии очищена.",
+  ["Watching %s's table — the cards are checked as you watch."] = "Вы смотрите стол игрока %s — карты проверяются вживую.",
+  ["Stopped watching."] = "Просмотр остановлен.",
 }
 
 -- place numbers: English ordinals; German "2."; Russian plain numerals

@@ -159,6 +159,7 @@ end
 function Casino:host(opts)
   if self.tableHost then return end
   self:unspectate()                       -- dealing replaces watching
+  self.recentTable = nil
   self.tableHost = ns.TableHost.new({
     tableId = self.me, name = opts.name, sb = opts.sb, bb = opts.bb, variant = opts.variant,
     version = self.ver,                       -- advertised so joiners can self-gate
@@ -192,6 +193,7 @@ function Casino:join(tableId)
   end
   if self.seatedAt then self:leave() end
   self:unspectate()                       -- sitting down replaces watching
+  self.recentTable = nil
   self.seatedAt = tableId
   self:_send(LOBBY, Codec.encode(OP.JOIN, { table = tableId, ver = self.ver }), self.broadcast, nil)
   return true
@@ -212,6 +214,13 @@ end
 
 function Casino:leave()
   if not self.seatedAt then return end
+  -- remember the table we just left: leaving nils seatedAt synchronously, but the
+  -- host's forfeit "out"/"end" TOURNEY events for THIS leave arrive a round-trip
+  -- later — without this, our own finish would fail the personal-stats "at this
+  -- table" gate and our /azh stats would disagree with the guild leaderboard.
+  -- Safe: it is a table we genuinely just played at, cleared the moment we engage
+  -- anywhere new (join/host/spectate).
+  self.recentTable = self.seatedAt
   self:_send(LOBBY, Codec.encode(OP.LEAVE, { table = self.seatedAt, player = self.me }), self.broadcast, nil)
   self.sessions[self.seatedAt] = nil
   self.client, self.seatedAt, self.amSittingOut = nil, nil, false
@@ -232,6 +241,7 @@ function Casino:spectate(tableId)
   end
   if self.watching == tableId then return true end
   self:unspectate()
+  self.recentTable = nil
   self.spectator = ns.Spectator.new({ selfName = self.me, hostName = tableId })
   self.spectator.onCheat = self.cfg.onCheat        -- local display only; never broadcast
   self.sessions[tableId] = self.spectator

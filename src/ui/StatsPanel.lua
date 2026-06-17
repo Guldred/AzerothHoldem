@@ -48,6 +48,8 @@ local function build()
     if panel.titleText then panel.titleText:SetText(L["Your Poker Record"]) end
     panel.achHead:SetText(L["Achievements"])
     panel.top:SetText(L["Guild Leaderboard"])
+    -- the data body is painted once on open — repaint it live if we're showing
+    if panel.IsShown and panel:IsShown() then ns.UI.showStats() end
   end)
 
   panel:Hide()
