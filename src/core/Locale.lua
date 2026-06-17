@@ -23,6 +23,12 @@ ns.L = L
 local DICT = {}
 
 DICT.deDE = {
+  -- leaderboard
+  ["Guild Leaderboard"] = "Gilden-Rangliste",
+  ["Sit & Go results seen on this floor."] = "Auf diesem Parkett gesehene Sit & Go-Ergebnisse.",
+  ["Player"] = "Spieler", ["Won"] = "Siege", ["Cashed"] = "Plätze", ["Played"] = "Gespielt",
+  ["Observed live — not a verified ranking. /azh top reset to clear."] = "Live beobachtet — keine verifizierte Wertung. /azh top reset zum Löschen.",
+  ["No tournaments seen yet — host or watch a Sit & Go!"] = "Noch keine Turniere gesehen — veranstalte oder schau einem Sit & Go zu!",
   -- lobby
   ["Play with:"] = "Spielen mit:",
   ["Guild"] = "Gilde", ["Group"] = "Gruppe",
@@ -104,6 +110,12 @@ DICT.deDE = {
 }
 
 DICT.ruRU = {
+  -- leaderboard
+  ["Guild Leaderboard"] = "Таблица гильдии",
+  ["Sit & Go results seen on this floor."] = "Результаты Sit & Go, увиденные на этом этаже.",
+  ["Player"] = "Игрок", ["Won"] = "Поб.", ["Cashed"] = "Призы", ["Played"] = "Сыгр.",
+  ["Observed live — not a verified ranking. /azh top reset to clear."] = "Видно вживую — не проверенный рейтинг. /azh top reset для сброса.",
+  ["No tournaments seen yet — host or watch a Sit & Go!"] = "Турниров пока не видно — проведите Sit & Go или посмотрите!",
   -- lobby
   ["Play with:"] = "Играть с:",
   ["Guild"] = "Гильдия", ["Group"] = "Группа",

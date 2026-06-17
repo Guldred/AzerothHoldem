@@ -177,6 +177,16 @@ function TableHost:startHand()
   -- a DONE host is kept around so the table keeps showing the result (winner,
   -- showdown cards) through the rest period; it doesn't block the next hand
   if self.host and self.host.phase ~= Host.PHASE.DONE then return false, "hand in progress" end
+  -- stamp a tournament instance id the moment a Sit&Go first deals — it rides
+  -- every TOURNEY event so a witnessing client can dedup this exact tournament
+  -- (the host name alone repeats across tournaments). Drawn from the host's
+  -- entropy so it is globally unique (and deterministic under the test seed).
+  if self.tourney and not self.tourneyId then
+    local e = self.cfg.entropy and self.cfg.entropy()
+    local r = (e and e.r) or tostring(self.id)
+    self.tourneyId = string.format("%02x%02x%02x%02x",
+      r:byte(1) or 0, r:byte(2) or 0, r:byte(3) or 0, r:byte(4) or 0)
+  end
   for p in pairs(self.pendingLeave) do self:_tourneyForfeit(p); self:_unseat(p) end
   self.pendingLeave = {}
   for p in pairs(self.pendingSeat) do self:_seat(p) end; self.pendingSeat = {}
@@ -308,6 +318,7 @@ end
 -- never hears its own broadcasts)
 function TableHost:_tourneyEvent(ev)
   ev.tableId = self.id
+  ev.tourneyId = self.tourneyId            -- identifies THIS tournament for dedup
   self.cfg.postControl(Codec.encode(OP.TOURNEY, ev), self.broadcast)
   if self.cfg.onTourney then self.cfg.onTourney(ev) end
 end

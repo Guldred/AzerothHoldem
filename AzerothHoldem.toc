@@ -2,7 +2,7 @@
 ## Title: Azeroth Hold'em
 ## Notes: Peer-verifiable Texas Hold'em with cryptographic anti-cheat (Tier 1)
 ## Author: Guldred & Fable
-## Version: 1.6.0
+## Version: 1.7.0
 ## SavedVariables: AzerothHoldemDB
 ## SavedVariablesPerCharacter: AzerothHoldemCharDB
 
@@ -46,6 +46,7 @@ src\game\Lobby.lua
 src\game\TableHost.lua
 src\game\Casino.lua
 src\game\Stats.lua
+src\game\Leaderboard.lua
 src\game\Spectator.lua
 
 # --- WoW shell (the only files that touch the client API) ---
@@ -59,3 +60,4 @@ src\ui\Actions.lua
 src\ui\TrustPanel.lua
 src\ui\LobbyPanel.lua
 src\ui\StatsPanel.lua
+src\ui\LeaderboardPanel.lua

@@ -10,7 +10,7 @@ local panel, rows
 
 local function build()
   local nAch = #ns.Stats.ACHIEVEMENTS
-  panel = W.panel(UIParent, 360, 240 + nAch * 17, L["Your Poker Record"], true)
+  panel = W.panel(UIParent, 360, 264 + nAch * 17, L["Your Poker Record"], true)
   panel:SetPoint("CENTER", -200, 0)
 
   local function line(y, font)
@@ -39,9 +39,15 @@ local function build()
     rows[i] = r
   end
 
+  panel.top = W.button(panel, "", function()
+    if ns.UI.showLeaderboard then ns.UI.showLeaderboard() end
+  end)
+  panel.top:SetWidth(180); panel.top:SetHeight(20); panel.top:SetPoint("BOTTOM", 0, 12)
+
   ns.UI.onRelabel(function()                       -- language switch: static labels
     if panel.titleText then panel.titleText:SetText(L["Your Poker Record"]) end
     panel.achHead:SetText(L["Achievements"])
+    panel.top:SetText(L["Guild Leaderboard"])
   end)
 
   panel:Hide()

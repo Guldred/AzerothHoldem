@@ -127,7 +127,7 @@ end
 --        | "end" (winner takes it down)
 ENC[OP.TOURNEY] = function(d)
   return Protocol.encode(OP.TOURNEY, { d.tableId, d.kind, d.player or "", d.place or 0,
-    d.level or 0, d.sb or 0, d.bb or 0, d.winner or "" })
+    d.level or 0, d.sb or 0, d.bb or 0, d.winner or "", d.tourneyId or "" })
 end
 ENC[OP.JOIN] = function(d) return Protocol.encode(OP.JOIN, { d.table, d.seat or "", d.ver or "" }) end
 ENC[OP.SEAT] = function(d)
@@ -257,10 +257,11 @@ DEC[OP.TABLE] = function(f)
 end
 DEC[OP.TOURNEY] = function(f)
   local pl, wn = leaf(f[3]), leaf(f[8])
+  local tid = f[9] and leaf(f[9]) or ""
   return { tableId = leaf(f[1]), kind = leaf(f[2]),
     player = pl ~= "" and pl or nil, place = tn(leaf(f[4])),
     level = tn(leaf(f[5])), sb = tn(leaf(f[6])), bb = tn(leaf(f[7])),
-    winner = wn ~= "" and wn or nil }
+    winner = wn ~= "" and wn or nil, tourneyId = tid ~= "" and tid or nil }
 end
 DEC[OP.JOIN] = function(f)
   local s = leaf(f[2])

@@ -218,8 +218,11 @@ end
 
 local function onTourney(ev)
   local me = UnitName("player")
-  -- only record results for a table we are actually at (the wire layer already
-  -- requires sender == tableId; this also keeps OTHER tables' events off our book)
+  -- the guild leaderboard is FLOOR-WIDE: every authenticated result we witness
+  -- counts (the module dedups by tournament and ignores forged singletons)
+  if ns.leaderboard then ns.leaderboard:onEvent(ev) end
+  -- only record PERSONAL results for a table we are actually at (the wire layer
+  -- already requires sender == tableId; this also keeps other tables off our book)
   local c = ns.casino
   local atTable = c and (c.seatedAt == ev.tableId or (c.tableHost and c.tableHost.id == ev.tableId))
   if ev.kind == "level" then
@@ -390,6 +393,13 @@ local handlers = {
   end,
   stats = function()
     if ns.UI and ns.UI.showStats then ns.UI.showStats() end
+  end,
+  top = function(a)
+    if (a[2] or ""):lower() == "reset" then
+      if ns.leaderboard then ns.leaderboard:reset() end
+      return Log.info("Guild leaderboard cleared.")
+    end
+    if ns.UI and ns.UI.showLeaderboard then ns.UI.showLeaderboard() end
   end,
   watch = function(a)
     if not a[2] then return Log.error("/azh watch <dealer name>") end
@@ -587,6 +597,10 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4)
     ns.cdb = AzerothHoldemCharDB
     ns.cdb.stats = ns.cdb.stats or {}
     ns.stats = ns.Stats.new(ns.cdb.stats)
+    -- the guild leaderboard is shared knowledge of the floor, so it lives in the
+    -- ACCOUNT db (AzerothHoldemDB), not the per-character one
+    ns.db.leaderboard = ns.db.leaderboard or {}
+    ns.leaderboard = ns.Leaderboard.new(ns.db.leaderboard)
     if ns.db.locale then                 -- a saved language override beats the client's
       ns.applyLocale(ns.db.locale)
       if ns.UI and ns.UI.relabel then ns.UI.relabel() end
