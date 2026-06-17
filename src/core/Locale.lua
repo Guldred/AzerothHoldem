@@ -23,6 +23,23 @@ ns.L = L
 local DICT = {}
 
 DICT.deDE = {
+  -- achievements (names kept evocative; descriptions exact)
+  ["First Blood"] = "Erstes Blut", ["Win your first hand"] = "Gewinne deine erste Hand",
+  ["On a Roll"] = "Im Lauf", ["Win 10 hands"] = "Gewinne 10 Hände",
+  ["Card Shark"] = "Kartenhai", ["Win 100 hands"] = "Gewinne 100 Hände",
+  ["Table Regular"] = "Stammgast", ["Play 100 hands"] = "Spiele 100 Hände",
+  ["The Grinder"] = "Der Grinder", ["Play 1,000 hands"] = "Spiele 1.000 Hände",
+  ["Heater"] = "Lauf", ["Win 5 hands in a row"] = "Gewinne 5 Hände in Folge",
+  ["Monster Pot"] = "Monster-Pot", ["Win 500+ chips in one hand"] = "Gewinne 500+ Chips in einer Hand",
+  ["Boat Builder"] = "Full-House-Baumeister", ["Make a Full House"] = "Bilde ein Full House",
+  ["Quad Damage"] = "Vierling", ["Make Four of a Kind"] = "Bilde einen Vierling",
+  ["Royal Line"] = "Königsreihe", ["Make a Straight Flush"] = "Bilde einen Straight Flush",
+  ["All-In, All Win"] = "All-in, voll gewonnen", ["Win a hand after going all-in"] = "Gewinne eine Hand nach einem All-in",
+  ["Stone Cold Bluffer"] = "Eiskalter Bluffer", ["Win 25 hands without a showdown"] = "Gewinne 25 Hände ohne Showdown",
+  ["Closer"] = "Vollstrecker", ["Win a Sit & Go"] = "Gewinne ein Sit & Go",
+  ["Dynasty"] = "Dynastie", ["Win 3 Sit & Gos"] = "Gewinne 3 Sit & Gos",
+  ["House Dealer"] = "Haus-Geber", ["Deal 50 hands as the host"] = "Gib 50 Hände als Gastgeber",
+  ["Trust, but Verify"] = "Vertrauen ist gut, Prüfen ist besser", ["100 hands verified clean"] = "100 Hände sauber verifiziert",
   -- leaderboard
   ["Guild Leaderboard"] = "Gilden-Rangliste",
   ["Sit & Go results seen on this floor."] = "Auf diesem Parkett gesehene Sit & Go-Ergebnisse.",
@@ -120,6 +137,23 @@ DICT.deDE = {
 }
 
 DICT.ruRU = {
+  -- achievements (names kept evocative; descriptions exact)
+  ["First Blood"] = "Первая кровь", ["Win your first hand"] = "Выиграйте первую руку",
+  ["On a Roll"] = "На ходу", ["Win 10 hands"] = "Выиграйте 10 рук",
+  ["Card Shark"] = "Карточная акула", ["Win 100 hands"] = "Выиграйте 100 рук",
+  ["Table Regular"] = "Завсегдатай", ["Play 100 hands"] = "Сыграйте 100 рук",
+  ["The Grinder"] = "Гриндер", ["Play 1,000 hands"] = "Сыграйте 1 000 рук",
+  ["Heater"] = "Кураж", ["Win 5 hands in a row"] = "Выиграйте 5 рук подряд",
+  ["Monster Pot"] = "Огромный банк", ["Win 500+ chips in one hand"] = "Выиграйте 500+ фишек в одной руке",
+  ["Boat Builder"] = "Строитель фулл-хауса", ["Make a Full House"] = "Соберите фулл-хаус",
+  ["Quad Damage"] = "Каре", ["Make Four of a Kind"] = "Соберите каре",
+  ["Royal Line"] = "Королевский ряд", ["Make a Straight Flush"] = "Соберите стрит-флеш",
+  ["All-In, All Win"] = "Олл-ин и победа", ["Win a hand after going all-in"] = "Выиграйте руку после олл-ина",
+  ["Stone Cold Bluffer"] = "Хладнокровный блефёр", ["Win 25 hands without a showdown"] = "Выиграйте 25 рук без вскрытия",
+  ["Closer"] = "Финишёр", ["Win a Sit & Go"] = "Выиграйте Sit & Go",
+  ["Dynasty"] = "Династия", ["Win 3 Sit & Gos"] = "Выиграйте 3 Sit & Go",
+  ["House Dealer"] = "Дилер заведения", ["Deal 50 hands as the host"] = "Раздайте 50 рук в роли хоста",
+  ["Trust, but Verify"] = "Доверяй, но проверяй", ["100 hands verified clean"] = "100 рук проверено начисто",
   -- leaderboard
   ["Guild Leaderboard"] = "Таблица гильдии",
   ["Sit & Go results seen on this floor."] = "Результаты Sit & Go, увиденные на этом этаже.",

@@ -203,7 +203,7 @@ end
 local function announce(unlocked)
   if not unlocked then return end
   for _, a in ipairs(unlocked) do
-    Log.info("|cffffd95c" .. LL("Achievement unlocked: %s"):format(a.name) .. "|r — " .. a.desc)
+    Log.info("|cffffd95c" .. LL("Achievement unlocked: %s"):format(LL(a.name)) .. "|r — " .. LL(a.desc))
     if type(PlaySound) == "function" then PlaySound("LEVELUPSOUND") end
   end
 end

@@ -80,9 +80,10 @@ function ns.UI.showStats()
   for i, a in ipairs(ns.Stats.ACHIEVEMENTS) do
     local r = rows[i]
     local got = unlocked[a.id]
+    local nm, dz = L[a.name], L[a.desc]
     r.icon:SetTexture(got and W.ICON.ready or W.ICON.waiting)
-    r.text:SetText(got and ("|cffffd95c" .. a.name .. "|r — " .. a.desc)
-      or ("|cff888888" .. a.name .. " — " .. a.desc .. "|r"))
+    r.text:SetText(got and ("|cffffd95c" .. nm .. "|r — " .. dz)
+      or ("|cff888888" .. nm .. " — " .. dz .. "|r"))
   end
   panel:Show()
 end
