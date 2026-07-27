@@ -8,6 +8,7 @@
 local ADDON, ns = ...
 local W = ns.W
 local L = ns.L
+local display = ns.Util.displayText
 local COL = W.COL
 local function rgba(t, a) return t[1], t[2], t[3], a or t[4] or 1 end
 
@@ -176,17 +177,17 @@ local function refresh()
       rf:Show()
       rf.label:SetText(string.format("%s|cffffd966%s|r   %d/%d seats   blinds %s/%s",
         t.tourney and "|cff9ad0ff[S&G]|r " or "",
-        t.name or t.tableId, t.taken, t.seatMax, W.commas(t.sb), W.commas(t.bb)))
+        display(t.name or t.tableId, 48), t.taken, t.seatMax, W.commas(t.sb), W.commas(t.bb)))
       -- who's at the table: from the ad (fresh) or the last SEAT broadcast we heard
       local names = t.players or (c and c.seats and c.seats[t.tableId])
       if names and #names > 0 then
         local shown = {}
-        for k = 1, math.min(#names, 4) do shown[k] = names[k] end
+        for k = 1, math.min(#names, 4) do shown[k] = display(names[k], 48) end
         local line = table.concat(shown, ", ")
         if #names > 4 then line = line .. " +" .. (#names - 4) end
         rf.players:SetText(L["Playing: "] .. line)
       else
-        rf.players:SetText(L["Host: %s"]:format(t.tableId))
+        rf.players:SetText(L["Host: %s"]:format(display(t.tableId, 48)))
       end
       local full = (t.taken or 0) >= (t.seatMax or 9)
       local verMismatch = c and t.ver ~= c.ver      -- exact-release gate (nil = old host)
@@ -194,8 +195,9 @@ local function refresh()
         rf.btn:SetText(L["Here"]); if rf.btn.Disable then rf.btn:Disable() end; rf.btn:Show()
       elseif verMismatch then
         rf.btn:SetText("Update"); if rf.btn.Disable then rf.btn:Disable() end; rf.btn:Show()
-        rf.players:SetText("Different addon version (" .. (t.ver and ("v" .. t.ver) or "older")
-          .. " vs your v" .. c.ver .. ") — install the same release.")
+        rf.players:SetText("Different addon version ("
+          .. (t.ver and ("v" .. display(t.ver, 24)) or "older")
+          .. " vs your v" .. display(c.ver, 24) .. ") — install the same release.")
       elseif c and c.watching == t.tableId then
         rf.btn:SetText(L["Watching"]); if rf.btn.Disable then rf.btn:Disable() end; rf.btn:Show()
       elseif (t.tourney and t.started) or full then
@@ -243,17 +245,17 @@ local function refresh()
   elseif mySeat then
     local t = c.lobby:get(mySeat)
     if c.client and c.client.seats then
-      panel.status:SetText(L["Seated at %s's table."]:format(tostring(mySeat)))
+      panel.status:SetText(L["Seated at %s's table."]:format(display(mySeat, 48)))
     else
       panel.status:SetText(L["Seated at %s — waiting for the host to start…"]
-        :format(tostring((t and t.name) or mySeat)))
+        :format(display((t and t.name) or mySeat, 48)))
     end
     panel.start:Hide(); panel.leave:Show(); panel.closeT:Hide()
     if panel.create.Disable then panel.create:Disable() end
   elseif c and c.watching then
     local t = c.lobby:get(c.watching)
     panel.status:SetText(L["Watching %s — every hand is checked as you watch."]
-      :format(tostring((t and t.name) or c.watching)))
+      :format(display((t and t.name) or c.watching, 48)))
     panel.start:Hide(); panel.leave:Hide(); panel.closeT:Hide()
     if panel.create.Enable then panel.create:Enable() end
   else

@@ -106,6 +106,26 @@ function Util.unescape(s)
   return (s:gsub("\\(.)", UNESC_MAP))
 end
 
+-- Network/user text rendered by a FontString must not be interpreted as WoW
+-- inline colour, texture, or hyperlink markup. Control characters become spaces,
+-- pipes are escaped, and an optional byte limit is cut on a UTF-8 boundary.
+function Util.displayText(value, maxBytes)
+  local s = tostring(value or ""):gsub("%c", " ")
+  if maxBytes and #s > maxBytes then
+    local start = maxBytes
+    while start > 0 do
+      local b = byte(s, start)
+      if not b or b < 128 or b >= 192 then break end
+      start = start - 1
+    end
+    local b = byte(s, start)
+    local width = b and (b < 128 and 1 or b < 224 and 2 or b < 240 and 3 or b < 248 and 4 or 1) or 1
+    if start + width - 1 > maxBytes then maxBytes = start - 1 end
+    s = s:sub(1, maxBytes)
+  end
+  return (s:gsub("|", "||"))
+end
+
 -- shallow copy
 function Util.shallowCopy(t)
   local r = {}

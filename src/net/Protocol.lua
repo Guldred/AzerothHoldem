@@ -21,6 +21,14 @@ local escape, unescape, split = Util.escape, Util.unescape, Util.split
 local concat = table.concat
 
 local Protocol = {}
+local MAX_CHUNKS = 64
+local MAX_MSGID_BYTES = 64
+local DEFAULT_MAX_PENDING = 128
+
+local function positiveInteger(n)
+  return type(n) == "number" and n == n and n ~= math.huge
+    and n ~= -math.huge and n >= 1 and n % 1 == 0
+end
 
 -- ---------------------------------------------------------------------------
 -- Application message encode/decode
@@ -104,6 +112,7 @@ end
 
 -- split into 5 parts; the 5th (payload) keeps any embedded '|'.
 function Protocol.parseFrame(s)
+  if type(s) ~= "string" then return nil, "malformed frame" end
   local p = {}
   local start = 1
   for _ = 1, 4 do
@@ -112,11 +121,18 @@ function Protocol.parseFrame(s)
     p[#p + 1] = s:sub(start, i - 1)
     start = i + 1
   end
+  local protoVer, seq, total = tonumber(p[1]), tonumber(p[3]), tonumber(p[4])
+  if not positiveInteger(protoVer)
+      or p[2] == "" or #p[2] > MAX_MSGID_BYTES
+      or not positiveInteger(seq) or not positiveInteger(total)
+      or total > MAX_CHUNKS or seq > total then
+    return nil, "invalid frame fields"
+  end
   return {
-    protoVer = tonumber(p[1]),
+    protoVer = protoVer,
     msgid = p[2],
-    seq = tonumber(p[3]),
-    total = tonumber(p[4]),
+    seq = seq,
+    total = total,
     payload = s:sub(start),
   }
 end
@@ -148,6 +164,9 @@ function Protocol.buildMessages(protoVer, msgid, payload, maxText)
       return out
     end
     total = total + 1
+    if total > MAX_CHUNKS then
+      error("Protocol.buildMessages: payload exceeds the bounded chunk count")
+    end
   end
 end
 
@@ -162,8 +181,13 @@ end
 local Reassembler = {}
 Reassembler.__index = Reassembler
 
-function Protocol.newReassembler()
-  return setmetatable({ buf = {}, pending = 0 }, Reassembler)
+function Protocol.newReassembler(cfg)
+  cfg = cfg or {}
+  return setmetatable({
+    buf = {}, pending = 0,
+    maxPending = cfg.maxPending or DEFAULT_MAX_PENDING,
+    maxChunks = cfg.maxChunks or MAX_CHUNKS,
+  }, Reassembler)
 end
 
 -- accept a parsed frame's chunk. Returns:
@@ -171,6 +195,12 @@ end
 --   "partial",  missingSeqs  (array) otherwise
 --   "duplicate", nil         if this seq was already stored
 function Reassembler:accept(sender, msgid, seq, total, chunk)
+  if type(sender) ~= "string" or sender == ""
+      or type(msgid) ~= "string" or msgid == "" or #msgid > MAX_MSGID_BYTES
+      or not positiveInteger(seq) or not positiveInteger(total)
+      or total > self.maxChunks or seq > total or type(chunk) ~= "string" then
+    return "invalid", nil
+  end
   local bySender = self.buf[sender]
   if not bySender then bySender = {}; self.buf[sender] = bySender end
   local e = bySender[msgid]
@@ -180,7 +210,8 @@ function Reassembler:accept(sender, msgid, seq, total, chunk)
     e = nil
   end
   if not e then
-    e = { total = total, parts = {}, count = 0, done = false }
+    if self.pending >= self.maxPending then return "overflow", nil end
+    e = { total = total, parts = {}, count = 0, done = false, age = 0 }
     bySender[msgid] = e
     self.pending = self.pending + 1
   end
@@ -206,6 +237,28 @@ function Reassembler:accept(sender, msgid, seq, total, chunk)
   return "partial", missing
 end
 
+-- Age and evict incomplete messages. Without this, one lost final chunk retains
+-- a buffer for the entire login session. Returns the number of entries evicted.
+function Reassembler:tick(maxAge)
+  maxAge = maxAge or 300
+  local evicted = 0
+  for sender, msgs in pairs(self.buf) do
+    local any = false
+    for msgid, e in pairs(msgs) do
+      e.age = (e.age or 0) + 1
+      if e.age > maxAge then
+        msgs[msgid] = nil
+        self.pending = self.pending - 1
+        evicted = evicted + 1
+      else
+        any = true
+      end
+    end
+    if not any then self.buf[sender] = nil end
+  end
+  return evicted
+end
+
 -- seqs still missing for an in-flight message, or nil if unknown/complete
 function Reassembler:missing(sender, msgid)
   local bySender = self.buf[sender]
@@ -226,4 +279,5 @@ function Reassembler:drop(sender, msgid)
 end
 
 ns.Protocol = Protocol
+Protocol.MAX_CHUNKS = MAX_CHUNKS
 return Protocol

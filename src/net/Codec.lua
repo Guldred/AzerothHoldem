@@ -151,7 +151,7 @@ ENC[OP.SNAPSHOT] = function(d)
   return Protocol.encode(OP.SNAPSHOT, {
     d.handNo, d.button, d.sb, d.bb, d.street, d.currentBet, d.minRaise, d.toAct or "",
     hx(d.S), { list = d.seats }, { list = stacks }, { list = committed }, { list = totals },
-    { list = status }, { list = d.board or {} }, { list = commitsHex },
+    { list = status }, { list = d.board or {} }, { list = commitsHex }, d.actionNo or 0,
   })
 end
 
@@ -299,6 +299,7 @@ DEC[OP.SNAPSHOT] = function(f)
     handNo = tn(leaf(f[1])), button = leaf(f[2]), sb = tn(leaf(f[3])), bb = tn(leaf(f[4])),
     street = tn(leaf(f[5])), currentBet = tn(leaf(f[6])), minRaise = tn(leaf(f[7])), toAct = toAct,
     S = unhx(leaf(f[9])), seats = seats, seatInfo = seatInfo, board = boardVals, commits = commits,
+    actionNo = f[17] and tn(leaf(f[17])) or 0,
   }
 end
 
@@ -313,7 +314,12 @@ function Codec.decode(payload)
   local op, fields = Protocol.decode(payload)
   local dec = DEC[op]
   if not dec then return op, nil end       -- unknown/unsupported op: caller decides
-  return op, dec(fields)
+  -- Every decoder consumes network input. Keep malformed hex, truncated opening
+  -- data, and invalid field shapes at the codec boundary instead of letting one
+  -- bad addon message unwind the game/UI event handler.
+  local ok, data = pcall(dec, fields)
+  if not ok then return op, nil end
+  return op, data
 end
 
 ns.Codec = Codec

@@ -1,8 +1,8 @@
 ## Interface: 30300
 ## Title: Azeroth Hold'em
-## Notes: Peer-verifiable Texas Hold'em with cryptographic anti-cheat (Tier 1)
-## Author: Guldred & Fable
-## Version: 1.7.2
+## Notes: Peer-verifiable Texas Hold'em with commitment-based deal checks
+## Author: Guldred
+## Version: 1.7.3
 ## SavedVariables: AzerothHoldemDB
 ## SavedVariablesPerCharacter: AzerothHoldemCharDB
 
@@ -18,7 +18,7 @@ src\crypto\Sha256.lua
 src\crypto\Rng.lua
 src\crypto\Commit.lua
 
-# --- Tier 2 crypto (optional mental poker; feature-flagged, heavy) ---
+# --- Experimental Tier 2 crypto core (not wired into gameplay) ---
 src\crypto\BigInt.lua
 src\crypto\SRA.lua
 src\crypto\MentalPoker.lua

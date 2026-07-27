@@ -1,7 +1,7 @@
 # Azeroth Hold'em
 
-Peer-verifiable Texas Hold'em for World of Warcraft 3.3.5a (WotLK), with real card art
-and a cryptographic anti-cheat layer.
+Peer-verifiable Texas Hold'em for the World of Warcraft client interface 30300,
+with real card art and commitment-based deal-integrity checks.
 
 ## Install
 1. Get this folder named exactly **`AzerothHoldem`** (a `git clone` already names it

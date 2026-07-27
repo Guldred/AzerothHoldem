@@ -498,7 +498,7 @@ function ns.UI.viewOf(s)
     v.turnTimeout = s.turnTimeout         -- countdown base (UI tracks elapsed locally)
     if s.seats then
       v.seats = {}
-      for i = 1, #s.seats do
+      for i = 1, math.min(#s.seats, 9) do
         local id = s.seats[i]
         v.seats[i] = { id = id, folded = s.folded and s.folded[id] or false,
                        stack = s.stacks and s.stacks[id],    -- live (refreshed every turn)

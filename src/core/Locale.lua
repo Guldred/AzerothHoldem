@@ -95,8 +95,8 @@ DICT.deDE = {
   ["Every player saw the SAME deck (cross-check)"] = "Alle Spieler sahen DASSELBE Deck (Kreuzprüfung)",
   ["Each revealed card matched its sealed hash"] = "Jede aufgedeckte Karte entsprach ihrem Siegel-Hash",
   ["Full deck re-derived & audited at hand end"] = "Komplettes Deck am Handende nachgerechnet & geprüft",
-  ["No one — the dealer included — can know or change the order of the cards. Any tampering trips an instant CHEAT alert for everyone at the table."] =
-    "Niemand — auch der Geber nicht — kann die Reihenfolge der Karten kennen oder ändern. Jede Manipulation löst sofort für alle am Tisch einen BETRUGS-Alarm aus.",
+  ["Tier 1 checks deck integrity, but it does not hide the deck from modified participant clients. Play with people you trust."] =
+    "Tier 1 prüft die Integrität des Decks, verbirgt es aber nicht vor veränderten Spieler-Clients. Spielt mit Leuten, denen ihr vertraut.",
   ["fair play: hand verified"] = "Fair Play: Hand verifiziert",
   ["fair play: cards verified"] = "Fair Play: Karten verifiziert",
   ["fair play: deck sealed, verifying…"] = "Fair Play: Deck versiegelt, prüfe…",
@@ -104,7 +104,7 @@ DICT.deDE = {
   ["fair play: FAILED"] = "Fair Play: FEHLGESCHLAGEN",
   ["fair play: couldn't verify this hand (missed a broadcast)"] = "Fair Play: Hand nicht prüfbar (Übertragung verpasst)",
   ["Hands fully verified this session: %d"] = "Vollständig geprüfte Hände diese Sitzung: %d",
-  ["Clients verify every hand you deal."] = "Die Mitspieler prüfen jede Hand, die du gibst.",
+  ["Participant checks are reported here only when they fail."] = "Prüfungen der Mitspieler werden hier nur gemeldet, wenn sie fehlschlagen.",
   ["Verification runs during each hand."] = "Die Prüfung läuft während jeder Hand.",
   ["No hand in progress — play one and check back!"] = "Keine Hand im Gange — spiel eine und schau wieder rein!",
   -- stats
@@ -213,8 +213,8 @@ DICT.ruRU = {
   ["Every player saw the SAME deck (cross-check)"] = "Все игроки видели ОДНУ И ТУ ЖЕ колоду (сверка)",
   ["Each revealed card matched its sealed hash"] = "Каждая открытая карта совпала со своим хешем",
   ["Full deck re-derived & audited at hand end"] = "Вся колода пересчитана и проверена в конце раздачи",
-  ["No one — the dealer included — can know or change the order of the cards. Any tampering trips an instant CHEAT alert for everyone at the table."] =
-    "Никто — включая дилера — не может знать или менять порядок карт. Любое вмешательство мгновенно поднимает тревогу ЧИТ для всех за столом.",
+  ["Tier 1 checks deck integrity, but it does not hide the deck from modified participant clients. Play with people you trust."] =
+    "Уровень 1 проверяет целостность колоды, но не скрывает её от изменённых клиентов игроков. Играйте с теми, кому доверяете.",
   ["fair play: hand verified"] = "честная игра: раздача проверена",
   ["fair play: cards verified"] = "честная игра: карты проверены",
   ["fair play: deck sealed, verifying…"] = "честная игра: колода запечатана, проверка…",
@@ -222,7 +222,7 @@ DICT.ruRU = {
   ["fair play: FAILED"] = "честная игра: ПРОВАЛ",
   ["fair play: couldn't verify this hand (missed a broadcast)"] = "честная игра: раздачу не удалось проверить (пропущен пакет)",
   ["Hands fully verified this session: %d"] = "Полностью проверено раздач за сессию: %d",
-  ["Clients verify every hand you deal."] = "Игроки проверяют каждую вашу раздачу.",
+  ["Participant checks are reported here only when they fail."] = "Проверки участников отображаются здесь только при сбое.",
   ["Verification runs during each hand."] = "Проверка идёт в каждой раздаче.",
   ["No hand in progress — play one and check back!"] = "Раздачи нет — сыграйте и загляните снова!",
   -- stats

@@ -89,10 +89,12 @@ function Transport:_sendAck(sender, dataMsgid)
   self.send(frames[1], "WHISPER", sender)   -- ACK is small -> single frame
 end
 
-function Transport:_handleAck(payload)
+function Transport:_handleAck(payload, sender, channel)
+  if channel ~= "WHISPER" then return end
   local _, fields = Protocol.decode(payload)
   local acked = Protocol.leaf(fields[1])
-  self.outbound[acked] = nil
+  local outbound = self.outbound[acked]
+  if outbound and sender == outbound.target then self.outbound[acked] = nil end
 end
 
 -- called by the in-game shell for each inbound CHAT_MSG_ADDON frame (prefix-filtered)
@@ -125,7 +127,7 @@ function Transport:onFrame(sender, wire, channel)
 
   local op = Protocol.decode(val)
   if op == OP.ACK then
-    self:_handleAck(val)
+    self:_handleAck(val, sender, channel)
     return
   end
   -- data message: dedupe-record, ACK (whispered/reliable path), deliver once
@@ -138,6 +140,7 @@ end
 
 -- advance the clock: retransmit unacked reliable messages, age dedupe records
 function Transport:tick()
+  self.reasm:tick(self.retentionTicks)
   for msgid, o in pairs(self.outbound) do
     o.sinceSend = o.sinceSend + 1
     if o.sinceSend >= self.retransmitTicks then
@@ -153,10 +156,17 @@ function Transport:tick()
   end
   -- age + evict dedupe records
   for sender, msgs in pairs(self.completed) do
+    local retained = false
     for msgid, age in pairs(msgs) do
       local a = age + 1
-      if a > self.retentionTicks then msgs[msgid] = nil else msgs[msgid] = a end
+      if a > self.retentionTicks then
+        msgs[msgid] = nil
+      else
+        msgs[msgid] = a
+        retained = true
+      end
     end
+    if not retained then self.completed[sender] = nil end
   end
 end
 

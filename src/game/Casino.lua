@@ -56,6 +56,21 @@ function Casino:_tagged(tag)
   }
 end
 
+local function validCount(n, min, max)
+  return type(n) == "number" and n == n and n % 1 == 0 and n >= min and n <= max
+end
+
+local function validSeatList(players)
+  if type(players) ~= "table" or #players > 9 then return false end
+  local seen = {}
+  for i = 1, #players do
+    local player = players[i]
+    if type(player) ~= "string" or player == "" or seen[player] then return false end
+    seen[player] = true
+  end
+  return true
+end
+
 -- inbound reassembled payloads from the real Transport: "tag|appPayload"
 function Casino:onWire(sender, wire, channel)
   local i = wire:find(SEP, 1, true)
@@ -88,6 +103,9 @@ function Casino:_control(sender, payload, channel)
   if d == nil then return end
   if op == OP.TABLE then
     if sender ~= d.tableId then return end   -- only the dealer advertises its table
+    if not validCount(d.seatMax, 2, 9) or not validCount(d.taken, 0, d.seatMax)
+        or not validCount(d.sb, 1, 2147483647) or not validCount(d.bb, d.sb, 2147483647)
+        or not validSeatList(d.players or {}) then return end
     self.lobby:onAd(d)
     -- an EXPLICIT close of the watched table releases the spectator right away
     if d.open == false and self.watching == d.tableId then
@@ -115,6 +133,7 @@ function Casino:_control(sender, payload, channel)
       self.tableHost:onJoin(sender)
     end
   elseif op == OP.REFUSE then
+    if not self.seatedAt or sender ~= (d.table or self.seatedAt) then return end
     -- our join was refused: release the pending seat (only the one that was
     -- actually refused — a late refusal must not clear a NEWER pending join)
     if not self.client and (not d.table or d.table == self.seatedAt) then self.seatedAt = nil end
@@ -135,6 +154,7 @@ function Casino:_control(sender, payload, channel)
     -- chat and write the per-character record, so a forged broadcast must die here.
     if sender == d.tableId and self.cfg.onTourney then self.cfg.onTourney(d) end
   elseif op == OP.SEAT then
+    if sender ~= d.tableId or not validSeatList(d.players) then return end
     self.seats[d.tableId] = d.players
     self.sitouts = self.sitouts or {}
     self.sitouts[d.tableId] = d.sitout or {}
@@ -202,6 +222,7 @@ end
 function Casino:_spawnClient(tableId)
   self.client = ns.Client.new({
     transport = self:_tagged(tableId), selfName = self.me, entropy = self.cfg.entropy,
+    hostName = tableId,
     broadcast = self.broadcast, onCheat = self.cfg.onCheat, policy = self.cfg.policy, human = self.cfg.human,
     onHandResult = self.cfg.onHandResult, onAudit = self.cfg.onAudit,   -- stats events
   })

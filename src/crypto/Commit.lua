@@ -51,7 +51,9 @@ function Commit.cardCommit(val, pos, nonce)
 end
 
 function Commit.verifyCard(commit, val, pos, nonce)
-  if type(val) ~= "number" or type(pos) ~= "number" then return false end
+  if type(commit) ~= "string" or #commit ~= 32 then return false end
+  if type(val) ~= "number" or val ~= val or val < 0 or val > 51 or val % 1 ~= 0 then return false end
+  if type(pos) ~= "number" or pos ~= pos or pos < 0 or pos > 51 or pos % 1 ~= 0 then return false end
   if type(nonce) ~= "string" or #nonce ~= NONCE_LEN then return false end
   return commit == Commit.cardCommit(val, pos, nonce)
 end

@@ -30,6 +30,10 @@ local Rules = {}
 -- ---------------------------------------------------------------------------
 -- small helpers
 -- ---------------------------------------------------------------------------
+local function isFiniteInteger(n)
+  return type(n) == "number" and n == n and n ~= math.huge and n ~= -math.huge and n % 1 == 0
+end
+
 local function nextPos(pos, n) return (pos % n) + 1 end
 
 local function posOfSeat(state, id)
@@ -286,7 +290,7 @@ function Rules.applyAction(state, id, action, amount)
 
   elseif action == A.BET then
     if not la.canBet then return false, "cannot bet" end
-    if type(amount) ~= "number" then return false, "bet needs an amount" end
+    if not isFiniteInteger(amount) then return false, "bet needs a finite integer amount" end
     if amount < la.minBetTo or amount > la.maxBetTo then return false, "bet out of range" end
     postChips(state, id, amount - s.committed, true)
     state.currentBet = s.committed
@@ -297,7 +301,7 @@ function Rules.applyAction(state, id, action, amount)
 
   elseif action == A.RAISE then
     if not la.canRaise then return false, "cannot raise" end
-    if type(amount) ~= "number" then return false, "raise needs an amount" end
+    if not isFiniteInteger(amount) then return false, "raise needs a finite integer amount" end
     if amount > la.maxRaiseTo then return false, "raise exceeds stack" end
     if amount <= state.currentBet then return false, "raise must exceed current bet" end
     local isAllIn = (amount == s.committed + s.stack)

@@ -71,6 +71,10 @@ local function countSeats(t, seats)
   for i = 1, #seats do if t[seats[i]] ~= nil then n = n + 1 end end
   return n
 end
+local function isSeat(seats, id)
+  for i = 1, #seats do if seats[i] == id then return true end end
+  return false
+end
 
 function Host:_bcast(op, data) self.tp:post(Codec.encode(op, data), self.broadcast, nil) end
 
@@ -123,27 +127,50 @@ function Host:onMessage(sender, payload, channel)
   if (op == OP.SEEDCMT or op == OP.SEEDREVEAL or op == OP.STATEHASH or op == OP.INTENT)
       and d.handNo and d.handNo ~= self.handNo then return end
 
-  -- only seats in THIS hand may contribute to its barriers or pull its state (a
-  -- just-(re)joined spectator's stray commit must not trip the collect-all counts
-  -- early, and RESYNC snapshots are for participants only)
+  -- Only the actual channel sender may speak for a seat. The payload identity is
+  -- untrusted and must never let one group member act or contribute for another.
   if op == OP.SEEDCMT or op == OP.SEEDREVEAL or op == OP.STATEHASH or op == OP.INTENT
       or op == OP.RESYNC then
-    local member = false
-    for i = 1, #self.seats do if self.seats[i] == d.seat then member = true break end end
-    if not member then return end
+    if sender ~= d.seat or not isSeat(self.seats, sender) then return end
+  elseif op == OP.CHEAT and not isSeat(self.seats, sender) then
+    return
   end
 
   if op == OP.SEEDCMT then
+    local old = self.commits[d.seat]
+    if old and old ~= d.commit then
+      return self:_abort("SEED", "seed commitment changed for " .. d.seat)
+    end
     self.commits[d.seat] = d.commit
+    local rev = self.reveals[d.seat]
+    if rev and not Commit.verifySeed(d.commit, rev.r, rev.salt) then
+      return self:_abort("SEED", "bad seed reveal from " .. d.seat)
+    end
   elseif op == OP.SEEDREVEAL then
     if self.commits[d.seat] and not Commit.verifySeed(self.commits[d.seat], d.r, d.salt) then
       return self:_abort("SEED", "bad seed reveal from " .. d.seat)
     end
+    local old = self.reveals[d.seat]
+    if old and (old.r ~= d.r or old.salt ~= d.salt) then
+      return self:_abort("SEED", "seed reveal changed for " .. d.seat)
+    end
     self.reveals[d.seat] = { r = d.r, salt = d.salt }
   elseif op == OP.STATEHASH then
+    local old = self.stateHashes[d.seat]
+    if old and old ~= d.H then
+      return self:_abort("STATEHASH", "state hash changed for " .. d.seat)
+    end
     self.stateHashes[d.seat] = d.H
   elseif op == OP.INTENT then
-    if self.phase == PHASE.BETTING then self:_applyAction(d.seat, d.action, d.amount) end
+    if self.phase == PHASE.BETTING and d.actionNo == self.actionNo then
+      self:_applyAction(d.seat, d.action, d.amount)
+    elseif self.phase == PHASE.BETTING and self.dealer.rules.toAct == d.seat then
+      local la = Rules.legalActions(self.dealer.rules, d.seat)
+      self.tp:sendReliable(Codec.encode(OP.REFUSE, {
+        handNo = self.handNo, actionNo = self.actionNo, reason = "stale action",
+      }), d.seat)
+      self:_bcast(OP.BET_TURN, self:_betTurnPayload(d.seat, la))
+    end
     return
   elseif op == OP.RESYNC then
     self:_resync(d.seat); return
@@ -411,7 +438,7 @@ function Host:_resync(seat)
     handNo = self.handNo, button = self.cfg.buttonSeat, sb = self.cfg.sb, bb = self.cfg.bb,
     street = rules.street, currentBet = rules.currentBet, minRaise = rules.minRaiseSize,
     toAct = rules.toAct, S = self.S, seats = self.seats, seatInfo = seatInfo,
-    board = self.dealer:boardCards(boardCount), commits = self.commits,
+    board = self.dealer:boardCards(boardCount), commits = self.commits, actionNo = self.actionNo,
   }), seat)
   self.tp:sendReliable(Codec.encode(OP.DECKCMT, { handNo = self.handNo, commits = self.deckCommits }), seat)
   if seat ~= self.me then

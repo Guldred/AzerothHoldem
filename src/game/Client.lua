@@ -46,7 +46,7 @@ function Client.new(cfg)
     policy = cfg.policy or defaultClientPolicy,
     human = cfg.human, prompt = nil,   -- human-driven client: wait for humanAct() on its turn
     onHandResult = cfg.onHandResult, onAudit = cfg.onAudit,   -- stats events (Init wires them)
-    hostName = nil, deltas = nil, folded = {},
+    hostName = cfg.hostName, deltas = nil, folded = {},
     phase = PHASE.IDLE,
     seats = nil, order = nil, handNo = nil,
     commits = {}, reveals = {}, sentReveal = false,
@@ -72,6 +72,21 @@ local function countSeats(t, seats)
   for i = 1, #seats do if t[seats[i]] ~= nil then n = n + 1 end end
   return n
 end
+local function isSeat(seats, id)
+  if not seats then return false end
+  for i = 1, #seats do if seats[i] == id then return true end end
+  return false
+end
+local function validSeatList(seats)
+  if type(seats) ~= "table" or #seats < 2 or #seats > 9 then return false end
+  local seen = {}
+  for i = 1, #seats do
+    local seat = seats[i]
+    if type(seat) ~= "string" or seat == "" or seen[seat] then return false end
+    seen[seat] = true
+  end
+  return true
+end
 
 function Client:_abort(code, detail)
   if self.aborted then return end
@@ -95,6 +110,20 @@ function Client:onMessage(sender, payload, channel)
   if self.aborted then return end          -- a detected cheat halts permanently
   local op, d = Codec.decode(payload)
   if d == nil then return end
+
+  -- Barrier contributions are peer-authored; every other live hand message is
+  -- host-authored. Bind those roles to the actual channel sender before touching
+  -- state. In legacy single-table mode the first HANDSTART establishes hostName.
+  local barrier = op == OP.SEEDCMT or op == OP.SEEDREVEAL or op == OP.STATEHASH
+  if barrier then
+    if sender ~= d.seat then return end
+  elseif op == OP.CHEAT then
+    if not isSeat(self.seats, sender) then return end
+  elseif self.hostName and sender ~= self.hostName then
+    return
+  end
+  if (op == OP.HANDSTART or op == OP.SNAPSHOT)
+      and (not validSeatList(d.seats) or not isSeat(d.seats, d.button)) then return end
 
   -- per-hand hygiene (only once we're in a hand): messages for OTHER hands must
   -- never touch this hand's state — a stale commit makes the fresh reveal look
@@ -145,6 +174,7 @@ function Client:onMessage(sender, payload, channel)
   if op == OP.HANDSTART then
     -- a re-broadcast HANDSTART of the hand we're ALREADY playing must not wipe it
     if self.seats and self.handNo == d.handNo then return end
+    if self.handNo and d.handNo and d.handNo < self.handNo then return end
     -- only play hands we are actually seated in: a freshly (re)joined client can see
     -- the table's current hand before its own seat takes effect next hand — joining
     -- that handshake as a phantom would corrupt the table's commit barriers.
@@ -293,14 +323,34 @@ end
 -- a peer's barrier contribution (seed commit / reveal / statehash) — shared by the
 -- live path and the early-message replay at HANDSTART
 function Client:_barrierOp(op, d)
+  -- A busted dealer is no longer in the card-holding seat list but still
+  -- contributes the deck STATEHASH clients must cross-check.
+  if not isSeat(self.seats, d.seat)
+      and not (op == OP.STATEHASH and d.seat == self.hostName) then return end
   if op == OP.SEEDCMT then
+    local old = self.commits[d.seat]
+    if old and old ~= d.commit then
+      return self:_abort(Verify.CODE.SEED, "seat " .. d.seat .. " changed its seed commitment")
+    end
     self.commits[d.seat] = d.commit
+    local rev = self.reveals[d.seat]
+    if rev and not Commit.verifySeed(d.commit, rev.r, rev.salt) then
+      return self:_abort(Verify.CODE.SEED, "seat " .. d.seat .. " seed does not open its commitment")
+    end
   elseif op == OP.SEEDREVEAL then
     if self.commits[d.seat] and not Commit.verifySeed(self.commits[d.seat], d.r, d.salt) then
       return self:_abort(Verify.CODE.SEED, "seat " .. d.seat .. " seed does not open its commitment")
     end
+    local old = self.reveals[d.seat]
+    if old and (old.r ~= d.r or old.salt ~= d.salt) then
+      return self:_abort(Verify.CODE.SEED, "seat " .. d.seat .. " changed its seed reveal")
+    end
     self.reveals[d.seat] = { r = d.r, salt = d.salt }
   elseif op == OP.STATEHASH then
+    local old = self.stateHashes[d.seat]
+    if old and old ~= d.H then
+      return self:_abort(Verify.CODE.STATE, "seat " .. d.seat .. " changed its state hash")
+    end
     self.stateHashes[d.seat] = d.H
   end
 end
@@ -344,8 +394,11 @@ function Client:_bootstrap(d, sender)
     toCall = self.pendingBetTurn.toCall
   end
   if toCall ~= nil then
-    if self.human then self.prompt = { toCall = toCall, minRaise = d.minRaise, actionNo = 0 }
-    else self:_act(toCall, d.minRaise, 0) end
+    if self.human then
+      self.prompt = { toCall = toCall, minRaise = d.minRaise, actionNo = d.actionNo or 0 }
+    else
+      self:_act(toCall, d.minRaise, d.actionNo or 0)
+    end
   end
 end
 

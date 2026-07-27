@@ -7,11 +7,12 @@
 local ADDON, ns = ...
 local W = ns.W
 local L = ns.L
+local display = ns.Util.displayText
 local function rgba(t, a) return t[1], t[2], t[3], a or t[4] or 1 end
 
 local cluster, banner, report
 
--- ---- the Fairness Report: WHY this game can't cheat, per hand, in plain words --
+-- ---- the Fairness Report: the checks and their limits, per hand, in plain words --
 local function buildReport()
   report = W.panel(UIParent, 360, 290, L["Fairness Report"], true)
   report:SetPoint("CENTER", -250, 60)
@@ -42,7 +43,7 @@ local function buildReport()
   ns.UI.onRelabel(function()                       -- language switch: static labels
     if report.titleText then report.titleText:SetText(L["Fairness Report"]) end
     for _, it in ipairs(items) do report.checks[it.key].label:SetText(L[it.label]) end
-    report.foot:SetText(L["No one — the dealer included — can know or change the order of the cards. Any tampering trips an instant CHEAT alert for everyone at the table."])
+    report.foot:SetText(L["Tier 1 checks deck integrity, but it does not hide the deck from modified participant clients. Play with people you trust."])
   end)
   report:Hide()
   ns.UI.fairnessPanel = report
@@ -60,26 +61,30 @@ function ns.UI.showFairness()
   local v = s and ns.UI.viewOf and ns.UI.viewOf(s)
   if v then
     report.hand:SetText("Hand #" .. tostring(s.handNo or "—") ..
-      (v.isHost and "  (you are the dealer — others verify your deal)" or ""))
+      (v.isHost and "  (you are the dealer — participants verify observed commitments)" or ""))
     -- each row lights up only when its check actually PASSED (never from an
     -- earlier gate alone); a detected cheat flips everything to the red X
     local bad = v.aborted and "bad" or nil
     setCheck("seed", bad or v.sealed)
     setCheck("deck", bad or (v.deckCommitted or nil))
     setCheck("same", bad or (v.crossChecked or nil))
-    -- the dealer doesn't verify its own deal — its cards/audit rows complete when
-    -- the hand does and no client raised a CHEAT (which now reaches the dealer)
-    -- watchers verify the PUBLIC cards (board/showdown) — they hold no holes
-    setCheck("cards", bad or (v.isHost and (v.deltas and true or nil)
-      or (v.spectating and (v.boardVerified and v.deckCommitted) or nil)
-      or v.holeVerified))
-    setCheck("audit", bad or (v.isHost and (v.deltas and true or nil) or v.auditPassed))
+    -- The dealer cannot independently attest its own output. Keep those rows
+    -- neutral instead of turning absence of a client failure into a green check.
+    -- Watchers verify public cards (board/showdown); they hold no private holes.
+    local cardsPassed, auditPassed
+    if not v.isHost then
+      cardsPassed = v.spectating and (v.boardVerified and v.deckCommitted) or v.holeVerified
+      auditPassed = v.auditPassed
+    end
+    setCheck("cards", bad or cardsPassed)
+    setCheck("audit", bad or auditPassed)
     local n = (not v.isHost and s.auditCount) or nil
     if not v.isHost and v.resumed then
       report.tally:SetText("Rejoined mid-hand — reduced checks this hand; full checks resume next hand.")
     else
       report.tally:SetText(n and L["Hands fully verified this session: %d"]:format(n)
-        or (v.isHost and L["Clients verify every hand you deal."] or L["Verification runs during each hand."]))
+        or (v.isHost and L["Participant checks are reported here only when they fail."]
+          or L["Verification runs during each hand."]))
     end
   else
     report.hand:SetText(L["No hand in progress — play one and check back!"])
@@ -126,7 +131,8 @@ local function refresh(v)
   if not v then banner:SetText(""); return end
   if v.aborted then
     setState(W.ICON.notready, L["fair play: FAILED"])
-    banner:SetText("|cffff2222>>> CHEAT: " .. (v.cheat and v.cheat.code or "?") .. " <<<|r")
+    banner:SetText("|cffff2222>>> CHEAT: "
+      .. display(v.cheat and v.cheat.code or "?", 48) .. " <<<|r")
     return
   end
   banner:SetText("")
@@ -142,7 +148,7 @@ end
 function ns.UI.showCheat(code, detail)
   if not cluster then return end
   setState(W.ICON.notready, L["fair play: FAILED"])
-  if banner then banner:SetText("|cffff2222>>> CHEAT: " .. tostring(code) .. " <<<|r") end
+  if banner then banner:SetText("|cffff2222>>> CHEAT: " .. display(code, 48) .. " <<<|r") end
 end
 
 build()

@@ -441,6 +441,11 @@ end
 -- — without this hook the dealer would never see it and the table would happily
 -- keep dealing while every honest client sits halted.
 function TableHost:onCheatReport(sender, d)
+  local seated = false
+  for i = 1, #self.order do
+    if self.order[i] == sender then seated = true break end
+  end
+  if not seated then return end
   self.halted = true
   if self.host then                  -- the retained host: flag it so the UI shows HALTED
     self.host.aborted = true

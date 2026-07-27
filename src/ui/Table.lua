@@ -4,6 +4,7 @@
 local ADDON, ns = ...
 local W = ns.W
 local L = ns.L
+local display = ns.Util.displayText
 local COL = W.COL
 local sin, cos, rad, floor = math.sin, math.cos, math.rad, math.floor
 local function rgba(t, a) return t[1], t[2], t[3], a or t[4] or 1 end
@@ -274,10 +275,13 @@ local function refresh(v)
   if winners and #winners == 1 then
     local wn = winners[1]
     local combo = v.showdown and v.showdown[wn.seat] and v.showdown[wn.seat].handName
-    winLine = L["%s wins +%s"]:format(wn.seat, W.commas(wn.amt)) .. (combo and ("  —  " .. combo) or "")
+    winLine = L["%s wins +%s"]:format(display(wn.seat, 48), W.commas(wn.amt))
+      .. (combo and ("  —  " .. display(combo, 64)) or "")
   elseif winners then
     local parts = {}
-    for i = 1, #winners do parts[i] = winners[i].seat .. " +" .. W.commas(winners[i].amt) end
+    for i = 1, #winners do
+      parts[i] = display(winners[i].seat, 48) .. " +" .. W.commas(winners[i].amt)
+    end
     winLine = L["Split pot:  "] .. table.concat(parts, ",  ")
   end
   frame._winLine = winLine
@@ -310,7 +314,7 @@ local function refresh(v)
   elseif winLine then statusText = L["Hand complete — next deal in a moment…"]
   elseif pausedNow and not v.toAct then statusText = "|cff9ad0ff" .. L["Table paused — back soon!"] .. "|r"
   elseif v.myTurn then statusText = "|cffffd95c" .. L["Your turn!"] .. "|r" .. clock
-  elseif v.toAct then statusText = L["Waiting for %s…"]:format(tostring(v.toAct)) .. clock
+  elseif v.toAct then statusText = L["Waiting for %s…"]:format(display(v.toAct, 48)) .. clock
   else statusText = "" end
   if pausedNow and v.toAct then
     statusText = statusText .. "  |cff9ad0ff" .. L["(break — no clock, finish at leisure)"] .. "|r"
@@ -324,7 +328,7 @@ local function refresh(v)
   -- seats around the oval, rotated so "me" sits at the bottom
   frame.activeGlow = nil
   local seats = v.seats or {}
-  local n = #seats
+  local n = math.min(#seats, MAXSEATS)
   local meIdx = 1
   for i = 1, n do if seats[i].id == v.me then meIdx = i end end
   for i = 1, MAXSEATS do
@@ -337,7 +341,8 @@ local function refresh(v)
       if s.id == v.me then px = -118 end              -- your plate sits LEFT of your hole
       box:ClearAllPoints()                            -- cards so your chips stay visible
       box:SetPoint("CENTER", frame.felt, "CENTER", px, AY * sin(theta))
-      box.name:SetText(s.id == v.me and L["%s (you)"]:format(s.id) or s.id)
+      local shownName = display(s.id, 48)
+      box.name:SetText(s.id == v.me and L["%s (you)"]:format(shownName) or shownName)
       -- class icon: best-effort lookup (party/raid, then guild roster); when the
       -- class is unknown the plate simply renders without an icon
       local tok = ns.classOf and ns.classOf(s.id)

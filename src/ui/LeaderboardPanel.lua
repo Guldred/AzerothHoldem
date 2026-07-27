@@ -8,6 +8,7 @@
 local ADDON, ns = ...
 local W = ns.W
 local L = ns.L
+local display = ns.Util.displayText
 local function rgba(t, a) return t[1], t[2], t[3], a or t[4] or 1 end
 
 local panel, rows
@@ -77,8 +78,7 @@ function ns.UI.showLeaderboard()
   for i = 1, ROWS do
     local r, e = rows[i], rank[i]
     if e then
-      local nm = e.name
-      if #nm > 22 then nm = nm:sub(1, 21) .. "…" end
+      local nm = display(e.name, 22)
       local mine = (e.name == me)
       local g = mine and "|cffffd95c" or ""
       local gz = mine and "|r" or ""

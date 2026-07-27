@@ -2,8 +2,8 @@
 
   Pure module. The shuffle is fully determined by the 32-byte seed S (so every
   party reproduces it at ENDREVEAL). The deal-map is a fixed function of the seat
-  count, so the host cannot route favorable committed positions to itself — clients
-  verify the actual deal matched it (see DESIGN.md "Canonical deal-map").
+  count. The built-in dealer follows it; independent client-side assignment
+  auditing is tracked separately (see DESIGN.md "Canonical deal-map").
 
   Card ids are 0..51 (see Const "Card encoding"). Deck arrays are 1-based; the
   committed position of d[k] is `k-1` (0-based).

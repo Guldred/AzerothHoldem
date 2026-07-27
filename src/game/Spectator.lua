@@ -49,6 +49,21 @@ local function canonical(seats)
   table.sort(c)
   return c
 end
+local function isSeat(seats, id)
+  if not seats then return false end
+  for i = 1, #seats do if seats[i] == id then return true end end
+  return false
+end
+local function validSeatList(seats)
+  if type(seats) ~= "table" or #seats < 2 or #seats > 9 then return false end
+  local seen = {}
+  for i = 1, #seats do
+    local seat = seats[i]
+    if type(seat) ~= "string" or seat == "" or seen[seat] then return false end
+    seen[seat] = true
+  end
+  return true
+end
 
 -- a PROVEN fairness violation: halt OUR display only (spectators don't
 -- broadcast — enforcement is the seated players' job; they run the same checks)
@@ -136,8 +151,9 @@ function Spectator:onMessage(sender, payload, channel)
 
   -- a seated player's violation report covers what only participants can see
   -- (e.g. a hole card failing its commitment): mirror it locally, send nothing.
-  -- Exempt from every gate below — it may carry any handNo, incl. 0.
+  -- It may carry any handNo, incl. 0, but still has to come from a current seat.
   if op == OP.CHEAT then
+    if not isSeat(self.seats, sender) then return end
     return self:_flag(d.code or "CHEAT", "reported by " .. tostring(sender) .. ": " .. (d.detail or ""))
   end
 
@@ -150,6 +166,8 @@ function Spectator:onMessage(sender, payload, channel)
   elseif sender ~= self.hostName then
     return
   end
+  if op == OP.HANDSTART
+      and (not validSeatList(d.seats) or not isSeat(d.seats, d.button)) then return end
 
   -- mid-hand arrivals wait for the next hand; per-hand hygiene mirrors Client:
   -- stale-hand frames are dropped, next-hand barrier frames racing ahead of the
